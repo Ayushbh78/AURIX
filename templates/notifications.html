@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+{% block title %}Notifications — AURIX{% endblock %}
+{% block topbar_title %}Notifications{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Notification Center</h1>
+    <p class="page-sub">Habit reminders, insights, and system alerts</p>
+  </div>
+  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+    <button class="btn-secondary" onclick="markAllRead();renderFullNotifPage()">✅ Mark All Read</button>
+    <button class="btn-primary" onclick="requestNotificationPermission().then(()=>startReminderLoop())" id="enable-notif-btn">
+      🔔 Enable Push
+    </button>
+  </div>
+</div>
+
+<!-- Permission Status Card -->
+<div class="card mb-20" id="notif-permission-card">
+  <div class="card-header">
+    <div class="card-icon ci-indigo">🔔</div>
+    <div class="card-title">Notification Status</div>
+  </div>
+  <div id="notif-status-content" style="padding:0 4px 4px">
+    <div class="notif-status-row">
+      <span id="notif-perm-indicator" class="status-dot status-dot-grey"></span>
+      <span id="notif-perm-text" style="font-size:13px;color:var(--text2)">Checking…</span>
+    </div>
+    <div style="margin-top:8px;font-size:12px;color:var(--text3)" id="notif-perm-hint"></div>
+  </div>
+</div>
+
+<!-- Tabs -->
+<div class="filter-tabs mb-20">
+  <button class="filter-btn active" onclick="showNotifTab('all', this)">🔔 All</button>
+  <button class="filter-btn" onclick="showNotifTab('reminder', this)">⏰ Reminders</button>
+  <button class="filter-btn" onclick="showNotifTab('insight', this)">📊 Insights</button>
+  <button class="filter-btn" onclick="showNotifTab('system', this)">⚙️ System</button>
+</div>
+
+<!-- Notification List -->
+<div id="full-notif-list">
+  <div class="empty-state">
+    <div class="empty-icon">🔔</div>
+    <div class="empty-title">Loading notifications…</div>
+  </div>
+</div>
+
+<!-- Reminder Settings Section -->
+<div class="card mt-20">
+  <div class="card-header">
+    <div class="card-icon ci-amber">⏰</div>
+    <div class="card-title">Habit Reminder Settings</div>
+  </div>
+  <div id="reminder-settings-list">
+    <div style="font-size:13px;color:var(--text3);padding:8px 0">Loading your habits…</div>
+  </div>
+  <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+    <p style="font-size:12px;color:var(--text3)">
+      💡 Reminders fire daily at your chosen time — even when the app is minimized or screen is locked (PWA mode).
+      <a href="/habits" style="color:var(--indigo);font-weight:600">Manage habits →</a>
+    </p>
+  </div>
+</div>
+
+<!-- Insights Trigger -->
+<div class="card mt-20">
+  <div class="card-header">
+    <div class="card-icon ci-violet">📊</div>
+    <div class="card-title">Reports & Insights</div>
+  </div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;padding:4px 0">
+    <button class="btn-secondary" onclick="generateWeeklyInsight();showToast('Weekly insight generated!','success')">
+      📊 Generate Weekly Report
+    </button>
+    <button class="btn-secondary" onclick="generateMonthlyInsight();showToast('Monthly insight generated!','success')">
+      📅 Generate Monthly Report
+    </button>
+    <a href="/insights" class="btn-primary">View Full Insights →</a>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Habit data from server for reminder settings UI
+const ALL_HABITS = {{ habits|tojson if habits is defined else '[]' }};
+
+let _currentNotifTab = 'all';
+
+// ── Render full notifications page ───────────────────────────────
+function renderFullNotifPage() {
+  renderPermissionStatus();
+  renderFullNotifList(_currentNotifTab);
+  renderReminderSettings();
+  updateNotificationBadge();
+}
+
+function renderPermissionStatus() {
+  const indicator = document.getElementById('notif-perm-indicator');
+  const text      = document.getElementById('notif-perm-text');
+  const hint      = document.getElementById('notif-perm-hint');
+  const btn       = document.getElementById('enable-notif-btn');
+
+  if (!('Notification' in window)) {
+    indicator.className = 'status-dot status-dot-red';
+    text.textContent    = '❌ Notifications not supported in this browser';
+    hint.textContent    = 'Try Chrome, Edge, or Firefox on Android.';
+    btn.style.display   = 'none';
+    return;
+  }
+
+  const perm = Notification.permission;
+  if (perm === 'granted') {
+    indicator.className = 'status-dot status-dot-green';
+    text.textContent    = '✅ Push notifications enabled — reminders will work in background';
+    hint.textContent    = 'Notifications will fire at your set times, even with the app closed.';
+    btn.textContent     = '✅ Enabled';
+    btn.disabled        = true;
+    btn.style.opacity   = '0.6';
+  } else if (perm === 'denied') {
+    indicator.className = 'status-dot status-dot-red';
+    text.textContent    = '🚫 Notifications blocked by browser';
+    hint.textContent    = 'To re-enable: open browser Settings → Site Settings → Notifications → allow this site.';
+    btn.style.display   = 'none';
+  } else {
+    indicator.className = 'status-dot status-dot-amber';
+    text.textContent    = '⚠️ Notifications not yet enabled';
+    hint.textContent    = 'Click "Enable Push" to receive habit reminders on your device.';
+  }
+}
+
+function renderFullNotifList(type) {
+  _currentNotifTab = type;
+  const all = loadNotifications();
+  const filtered = type === 'all' ? all : all.filter(n => n.type === type);
+  const list = document.getElementById('full-notif-list');
+  if (!list) return;
+
+  if (filtered.length === 0) {
+    list.innerHTML = `
+      <div class="empty-state" style="padding:40px 20px">
+        <div class="empty-icon">${type === 'reminder' ? '⏰' : type === 'insight' ? '📊' : '🔔'}</div>
+        <div class="empty-title">No ${type === 'all' ? '' : type + ' '}notifications yet</div>
+        <div class="empty-sub">They'll appear here when triggered</div>
+      </div>`;
+    return;
+  }
+
+  const grouped = {};
+  const today     = new Date().toDateString();
+  const yesterday = new Date(Date.now() - 86400000).toDateString();
+
+  for (const n of filtered) {
+    const d     = new Date(n.timestamp).toDateString();
+    const label = d === today ? 'Today' : d === yesterday ? 'Yesterday'
+                : new Date(n.timestamp).toLocaleDateString('en-US', {month:'short',day:'numeric',year:'numeric'});
+    if (!grouped[label]) grouped[label] = [];
+    grouped[label].push(n);
+  }
+
+  list.innerHTML = Object.entries(grouped).map(([date, items]) => `
+    <div class="notif-date-label-full">${date}</div>
+    <div class="notif-full-group">
+      ${items.map(n => `
+        <div class="notif-full-item ${n.read ? '' : 'notif-full-unread'}" onclick="markRead(${n.id});this.classList.remove('notif-full-unread');updateNotificationBadge();if('${n.link}'!='#')window.location.href='${n.link}'">
+          <div class="notif-full-icon">${n.icon || '🔔'}</div>
+          <div class="notif-full-content">
+            <div class="notif-full-title">${escapeHtml(n.title)}</div>
+            <div class="notif-full-body">${escapeHtml(n.body)}</div>
+            <div class="notif-full-meta">
+              <span class="notif-type-chip notif-type-${n.type}">${n.type}</span>
+              <span class="notif-full-time">${formatRelativeTime(n.timestamp)}</span>
+            </div>
+          </div>
+          ${!n.read ? '<div class="notif-full-dot"></div>' : ''}
+        </div>
+      `).join('')}
+    </div>
+  `).join('');
+}
+
+function showNotifTab(type, btn) {
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderFullNotifList(type);
+}
+
+function renderReminderSettings() {
+  const container = document.getElementById('reminder-settings-list');
+  if (!container) return;
+
+  // Fetch habits from server via the global or inline data
+  const habits = ALL_HABITS;
+  if (!habits.length) {
+    container.innerHTML = '<p style="font-size:13px;color:var(--text3)">No habits found. <a href="/habits" style="color:var(--indigo)">Add habits →</a></p>';
+    return;
+  }
+
+  const reminders = loadReminders();
+  container.innerHTML = habits.map(h => {
+    const rem = reminders[h.id];
+    const hasRem = rem?.enabled && rem?.times?.length;
+    return `
+      <div class="reminder-setting-row">
+        <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0">
+          <div class="reminder-color-dot" style="background:${h.color || '#6366f1'}"></div>
+          <div>
+            <div style="font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(h.name)}</div>
+            <div style="font-size:11px;color:var(--text3)">
+              ${hasRem
+                ? `⏰ Reminders: <strong style="color:var(--indigo)">${rem.times.join(', ')}</strong>`
+                : '<span style="color:var(--text3)">No reminder set</span>'}
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;gap:6px;flex-shrink:0">
+          <button class="btn-secondary btn-sm" onclick="openReminderModal(${h.id}, '${h.name.replace(/'/g,"\\'")}')">
+            ${hasRem ? '✏️ Edit' : '⏰ Set'}
+          </button>
+          ${hasRem ? `<button class="icon-btn icon-btn-danger" onclick="removeHabitReminder(${h.id});renderReminderSettings();showToast('Reminder removed','info')" title="Remove">✕</button>` : ''}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+// Init on load
+document.addEventListener('DOMContentLoaded', () => {
+  renderFullNotifPage();
+});
+</script>
+{% endblock %}

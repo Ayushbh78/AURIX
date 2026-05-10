@@ -1,0 +1,44 @@
+{
+  "name": "AURIX — Life OS",
+  "short_name": "AURIX",
+  "description": "Personal Productivity & Habit Tracker by Ayush Bhardwaj",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#0d0d14",
+  "theme_color": "#6366f1",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/static/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/static/favicon.ico",
+      "sizes": "48x48",
+      "type": "image/x-icon"
+    }
+  ],
+  "categories": ["productivity", "lifestyle"],
+  "shortcuts": [
+    {
+      "name": "Habits",
+      "short_name": "Habits",
+      "url": "/habits",
+      "description": "Check and log daily habits"
+    },
+    {
+      "name": "Insights",
+      "short_name": "Insights",
+      "url": "/insights",
+      "description": "View weekly and monthly analytics"
+    },
+    {
+      "name": "Notifications",
+      "short_name": "Alerts",
+      "url": "/notifications",
+      "description": "View all notifications"
+    }
+  ]
+}

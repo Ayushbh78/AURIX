@@ -1,0 +1,223 @@
+{% extends "base.html" %}
+{% block title %}Habits{% endblock %}
+{% block topbar_title %}Habits{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Daily Habits</h1>
+    {% if habits %}
+    <p class="page-sub">{{ completion_pct }}% complete today · {{ logs_today|length }}/{{ habits|length }} done</p>
+    {% else %}
+    <p class="page-sub">Track your daily habits and build consistency</p>
+    {% endif %}
+  </div>
+  <button class="btn-primary" onclick="openModal('modal-add-habit')">+ Add Habit</button>
+</div>
+
+<!-- Search -->
+{% if habits %}
+<div class="search-row mb-20">
+  <input type="text" id="habit-search" class="search-input" placeholder="🔍 Search habits…" oninput="filterHabits(this.value)"/>
+  <div class="filter-pills">
+    <button class="filter-pill active" onclick="filterByPriority('all',this)">All</button>
+    <button class="filter-pill" onclick="filterByPriority('High',this)">🔴 High</button>
+    <button class="filter-pill" onclick="filterByPriority('Medium',this)">🟡 Medium</button>
+    <button class="filter-pill" onclick="filterByPriority('Low',this)">🟢 Low</button>
+  </div>
+</div>
+
+<!-- Today Progress Bar -->
+<div class="card mb-20">
+  <div class="card-header">
+    <div class="card-icon" style="background:var(--indigo-soft)">✅</div>
+    <div class="card-title">Today's Progress</div>
+    <div class="card-badge" id="habit-pct-label">{{ completion_pct }}%</div>
+  </div>
+  <div class="big-progress-wrap">
+    <div class="big-progress-bar">
+      <div class="big-progress-fill" id="main-progress-fill" style="width:{{ completion_pct }}%"></div>
+    </div>
+    <div class="big-progress-label">{{ logs_today|length }}/<span id="habit-total">{{ habits|length }}</span></div>
+  </div>
+  <!-- Quick check pills -->
+  <div class="habit-quick-grid">
+    {% for h in habits %}
+    <button class="habit-quick-pill {% if h.done_today %}habit-pill-done{% endif %}"
+            onclick="toggleHabit({{ h.id }})" data-hid="{{ h.id }}" data-priority="{{ h.priority }}">
+      <span class="pill-check">{% if h.done_today %}✓{% else %}○{% endif %}</span>
+      {{ h.name }}
+    </button>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- Habits Grid -->
+<div class="habits-grid" id="habits-grid">
+  {% for h in habits %}
+  <div class="habit-card {% if h.done_today %}habit-card-done{% endif %}"
+       id="hcard-{{ h.id }}"
+       data-name="{{ h.name|lower }}"
+       data-priority="{{ h.priority }}">
+    <div class="habit-card-color-bar" style="background:{{ h.color }}"></div>
+
+    <div class="habit-card-top">
+      <div class="habit-card-info">
+        <div class="habit-name">{{ h.name }}</div>
+        <div class="habit-meta">{{ h.category }} · {{ h.priority }} · {{ h.frequency }}</div>
+      </div>
+      <div class="habit-card-actions">
+        <button class="icon-btn" onclick="openModal('modal-edit-habit-{{ h.id }}')" title="Edit">✏</button>
+        <form method="POST" action="/delete-habit/{{ h.id }}" style="display:inline"
+              onsubmit="return confirm('Delete this habit?')">
+          <button class="icon-btn icon-btn-danger" type="submit" title="Delete">✕</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="habit-stats-row">
+      <div class="habit-stat">
+        <div class="habit-stat-num">🔥{{ h.streak }}</div>
+        <div class="habit-stat-label">Streak</div>
+      </div>
+      <div class="habit-stat">
+        <div class="habit-stat-num">{{ h.week_count }}/7</div>
+        <div class="habit-stat-label">This Week</div>
+      </div>
+      <div class="habit-stat">
+        <div class="habit-stat-num">{{ h.week_pct }}%</div>
+        <div class="habit-stat-label">Rate</div>
+      </div>
+    </div>
+    {% if h.subtask_total > 0 %}
+    <div class="habit-subtask-summary">
+      <div class="habit-subtask-bar-wrap">
+        <div class="habit-subtask-bar" style="width:{{ h.subtask_pct }}%"></div>
+      </div>
+      <div class="habit-subtask-label">{{ h.subtask_done }}/{{ h.subtask_total }} tasks · {{ h.subtask_pct }}%</div>
+      {% if h.incomplete_tasks %}
+      <div class="habit-incomplete-hint">⚠ Pending: {{ h.incomplete_tasks[:2]|join(', ') }}{% if h.incomplete_tasks|length > 2 %} +{{ h.incomplete_tasks|length - 2 }}{% endif %}</div>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    <div class="habit-card-footer">
+      <div class="habit-progress-bar">
+        <div class="habit-progress-fill" style="width:{{ h.week_pct }}%; background:{{ h.color }}"></div>
+      </div>
+      <div class="habit-footer-btns">
+        <a href="/habit/{{ h.id }}" class="btn-secondary btn-sm">Open →</a>
+        <button class="habit-remind-btn {% if h.has_reminder %}habit-remind-active{% endif %}"
+                onclick="openReminderModal({{ h.id }}, '{{ h.name|e }}')"
+                data-hid="{{ h.id }}"
+                title="{% if h.has_reminder %}Reminder: {{ h.reminder_times }}{% else %}Set Reminder{% endif %}">
+          ⏰{% if h.has_reminder %} {{ h.reminder_times }}{% endif %}
+        </button>
+        <button class="habit-toggle-btn {% if h.done_today %}habit-toggle-done{% endif %}"
+                onclick="toggleHabit({{ h.id }})" data-hid="{{ h.id }}">
+          {% if h.done_today %}✓ Done{% else %}Mark Done{% endif %}
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit Modal -->
+  <div id="modal-edit-habit-{{ h.id }}" class="modal-content hidden">
+    <div class="modal-header"><h3>Edit Habit</h3></div>
+    <form method="POST" action="/edit-habit/{{ h.id }}">
+      <div class="form-group"><label>Habit Name</label>
+        <input type="text" name="name" value="{{ h.name }}" required class="form-input"/></div>
+      <div class="form-row">
+        <div class="form-group"><label>Category</label>
+          <input type="text" name="category" value="{{ h.category }}" class="form-input"/></div>
+        <div class="form-group"><label>Priority</label>
+          <select name="priority" class="form-input">
+            {% for p in ['High','Medium','Low'] %}
+            <option {% if h.priority==p %}selected{% endif %}>{{ p }}</option>{% endfor %}
+          </select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Frequency</label>
+          <select name="frequency" class="form-input">
+            {% for f in ['Daily','Weekdays','Weekends','3x/week'] %}
+            <option {% if h.frequency==f %}selected{% endif %}>{{ f }}</option>{% endfor %}
+          </select></div>
+        <div class="form-group"><label>Color</label>
+          <input type="color" name="color" value="{{ h.color }}" class="form-input" style="height:44px"/></div>
+      </div>
+      <div class="form-group"><label>Notes</label>
+        <textarea name="notes" class="form-input" rows="2">{{ h.notes }}</textarea></div>
+      <div class="form-actions">
+        <button type="button" class="btn-secondary" onclick="closeActiveModal()">Cancel</button>
+        <button type="submit" class="btn-primary">Save Changes</button>
+      </div>
+    </form>
+  </div>
+  {% endfor %}
+</div>
+
+{% else %}
+<div class="empty-state">
+  <div class="empty-icon">✅</div>
+  <div class="empty-title">No habits yet</div>
+  <div class="empty-sub">Add your first habit to start building consistency</div>
+  <button class="btn-primary" onclick="openModal('modal-add-habit')">+ Add Your First Habit</button>
+</div>
+{% endif %}
+
+<!-- Add Habit Modal -->
+<div id="modal-add-habit" class="modal-content hidden">
+  <div class="modal-header"><h3>Add New Habit</h3><p>Click "Open" on the habit card to add sub-tasks and log time</p></div>
+  <form method="POST" action="/add-habit">
+    <div class="form-group"><label>Habit Name</label>
+      <input type="text" name="name" required class="form-input" placeholder="e.g. Morning Workout, Study DSA, Reading…"/></div>
+    <div class="form-row">
+      <div class="form-group"><label>Category</label>
+        <input type="text" name="category" class="form-input" placeholder="Health, Study, Skills…"/></div>
+      <div class="form-group"><label>Priority</label>
+        <select name="priority" class="form-input">
+          <option>High</option><option selected>Medium</option><option>Low</option>
+        </select></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Frequency</label>
+        <select name="frequency" class="form-input">
+          <option>Daily</option><option>Weekdays</option><option>Weekends</option><option>3x/week</option>
+        </select></div>
+      <div class="form-group"><label>Color</label>
+        <input type="color" name="color" value="#4338ca" class="form-input" style="height:44px"/></div>
+    </div>
+    <div class="form-group"><label>Notes (optional)</label>
+      <textarea name="notes" class="form-input" rows="2" placeholder="Goals, reminders…"></textarea></div>
+    <div class="form-actions">
+      <button type="button" class="btn-secondary" onclick="closeActiveModal()">Cancel</button>
+      <button type="submit" class="btn-primary">Add Habit</button>
+    </div>
+  </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Expose habit data for notification system
+window.AURIX_HABITS      = {{ habits|tojson }};
+window.AURIX_DONE_TODAY  = {{ logs_today|tojson }};
+
+function filterHabits(q) {
+  q = q.toLowerCase();
+  document.querySelectorAll('.habit-card').forEach(card => {
+    card.style.display = (card.dataset.name||'').includes(q) ? '' : 'none';
+  });
+}
+let activeFilter = 'all';
+function filterByPriority(p, btn) {
+  activeFilter = p;
+  document.querySelectorAll('.filter-pill').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.habit-card').forEach(card => {
+    card.style.display = (p === 'all' || card.dataset.priority === p) ? '' : 'none';
+  });
+}
+</script>
+{% endblock %}
