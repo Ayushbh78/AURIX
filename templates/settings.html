@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Settings{% endblock %}
+{% block topbar_title %}Settings{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Settings</h1>
+    <p class="page-sub">Personalise your Life OS</p>
+  </div>
+</div>
+
+<div class="two-col-grid">
+  <div class="card">
+    <div class="card-header">
+      <div class="card-icon ci-indigo">👤</div>
+      <div class="card-title">Personal Info</div>
+    </div>
+    <form method="POST" action="/settings">
+      <div class="form-group"><label>Your Name</label>
+        <input type="text" name="name" value="{{ settings.name }}" class="form-input" placeholder="Your name…"/></div>
+      <div class="form-group"><label>Monthly Budget ({{ budget.currency }})</label>
+        <input type="number" name="monthly_budget" value="{{ budget.monthly if budget.monthly > 0 else '' }}"
+               class="form-input" placeholder="Leave blank for no budget tracking"/></div>
+      <div class="form-group"><label>Currency Symbol</label>
+        <input type="text" name="currency" value="{{ budget.currency }}" class="form-input" maxlength="3"/></div>
+      <div class="form-group"><label>Daily Sleep Goal (hours)</label>
+        <input type="number" name="daily_sleep_goal" value="{{ settings.daily_sleep_goal }}"
+               step="0.5" class="form-input"/></div>
+      <div class="form-actions" style="padding-top:8px;border-top:none;justify-content:flex-start">
+        <button type="submit" class="btn-primary">Save Settings</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-icon ci-amber">⌨️</div>
+      <div class="card-title">Keyboard Shortcuts</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      {% for k, v in [('Alt + D','Dashboard'),('Alt + H','Habits'),('Alt + P','Planner'),
+                      ('Alt + S','Spending'),('Alt + E','Study & Exams'),('Alt + C','Calendar'),
+                      ('Alt + N','Notes'),('Alt + G','Goals'),('Alt + Z','Sleep'),
+                      ('Alt + R','Reports'),('Alt + M','Monthly Tracker')] %}
+      <div style="display:flex;justify-content:space-between;font-size:13px;padding:6px 0;border-bottom:1px solid var(--border)">
+        <span style="font-family:var(--mono);background:var(--bg3);padding:2px 8px;border-radius:6px;font-size:12px">{{ k }}</span>
+        <span style="color:var(--text2);font-weight:600">{{ v }}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <div class="card-icon ci-violet">ℹ️</div>
+    <div class="card-title">About</div>
+  </div>
+  <div style="font-size:13px;color:var(--text2);line-height:1.8;font-weight:600">
+    <p><strong style="color:var(--text)">Ayush's Life OS</strong> — Personal Productivity Tracker</p>
+    <p>All data stored locally in <code style="background:var(--bg3);padding:2px 6px;border-radius:4px;font-family:var(--mono)">data.json</code> — no cloud, no accounts.</p>
+    <p>Backup: copy <code style="background:var(--bg3);padding:2px 6px;border-radius:4px;font-family:var(--mono)">data.json</code> to keep your data safe.</p>
+  </div>
+</div>
+{% endblock %}

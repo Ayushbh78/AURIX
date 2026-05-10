@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+{% block title %}Daily Planner{% endblock %}
+{% block topbar_title %}Daily Planner{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Daily Planner</h1>
+    <p class="page-sub">{{ today_tasks|selectattr('completed')|list|length }}/{{ today_tasks|length }} tasks done today</p>
+  </div>
+  <button class="btn-primary" onclick="openModal('modal-add-task')">+ Add Task</button>
+</div>
+
+{% if overdue_tasks %}
+<div class="overdue-banner">⚠ {{ overdue_tasks|length }} overdue task(s) need attention</div>
+{% endif %}
+
+<!-- Today -->
+<div class="card mb-20">
+  <div class="card-header"><div class="card-title">Today — {{ today }}</div></div>
+  {% if today_tasks %}
+  <div class="task-list" id="today-tasks">
+    {% for t in today_tasks|sort(attribute='completed') %}
+    <div class="task-item {% if t.completed %}task-done{% endif %}" id="task-{{ t.id }}">
+      <div class="task-check-wrap">
+        <button class="task-circle {% if t.completed %}task-circle-done{% endif %}"
+                onclick="toggleTask({{ t.id }})">{% if t.completed %}✓{% endif %}</button>
+      </div>
+      <div class="task-body">
+        <div class="task-title {% if t.completed %}line-through text-muted{% endif %}">
+          {% if t.important %}⭐ {% endif %}{{ t.title }}
+        </div>
+        <div class="task-meta">
+          {% if t.due_time %}<span>{{ t.due_time }}</span> · {% endif %}
+          <span class="priority-badge priority-{{ t.priority|lower }}">{{ t.priority }}</span>
+          {% if t.category %} · {{ t.category }}{% endif %}
+          {% if t.description %} · <span class="text-muted">{{ t.description }}</span>{% endif %}
+        </div>
+      </div>
+      <div class="task-actions">
+        <button class="icon-btn" onclick="openModal('modal-edit-task-{{ t.id }}')">✏</button>
+        <form method="POST" action="/delete-task/{{ t.id }}" style="display:inline">
+          <button class="icon-btn icon-btn-danger" type="submit">✕</button>
+        </form>
+      </div>
+    </div>
+    {% include 'task_edit_modal.html' %}
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-sm">No tasks for today. Enjoy your day! 🎉</div>
+  {% endif %}
+</div>
+
+<!-- Upcoming -->
+{% if upcoming_tasks %}
+<div class="card mb-20">
+  <div class="card-header"><div class="card-title">Upcoming</div></div>
+  <div class="task-list">
+    {% for t in upcoming_tasks[:10] %}
+    <div class="task-item">
+      <div class="task-check-wrap">
+        <button class="task-circle" onclick="toggleTask({{ t.id }})"></button>
+      </div>
+      <div class="task-body">
+        <div class="task-title">{% if t.important %}⭐ {% endif %}{{ t.title }}</div>
+        <div class="task-meta">
+          📅 {{ t.date }}
+          {% if t.due_time %} · {{ t.due_time }}{% endif %}
+          · <span class="priority-badge priority-{{ t.priority|lower }}">{{ t.priority }}</span>
+        </div>
+      </div>
+      <div class="task-actions">
+        <button class="icon-btn" onclick="openModal('modal-edit-task-{{ t.id }}')">✏</button>
+        <form method="POST" action="/delete-task/{{ t.id }}" style="display:inline">
+          <button class="icon-btn icon-btn-danger" type="submit">✕</button>
+        </form>
+      </div>
+    </div>
+    {% include 'task_edit_modal.html' %}
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<!-- Overdue -->
+{% if overdue_tasks %}
+<div class="card mb-20">
+  <div class="card-header"><div class="card-title" style="color:var(--danger)">Overdue Tasks</div></div>
+  <div class="task-list">
+    {% for t in overdue_tasks %}
+    <div class="task-item task-overdue">
+      <div class="task-check-wrap">
+        <button class="task-circle" onclick="toggleTask({{ t.id }})"></button>
+      </div>
+      <div class="task-body">
+        <div class="task-title">{{ t.title }}</div>
+        <div class="task-meta">📅 {{ t.date }} · <span class="priority-badge priority-{{ t.priority|lower }}">{{ t.priority }}</span></div>
+      </div>
+      <div class="task-actions">
+        <form method="POST" action="/delete-task/{{ t.id }}" style="display:inline">
+          <button class="icon-btn icon-btn-danger" type="submit">✕</button>
+        </form>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<!-- Add Task Modal -->
+<div id="modal-add-task" class="modal-content hidden">
+  <div class="modal-header"><h3>Add Task</h3></div>
+  <form method="POST" action="/add-task">
+    <div class="form-group">
+      <label>Task Title</label>
+      <input type="text" name="title" required class="form-input" placeholder="What needs to be done?"/>
+    </div>
+    <div class="form-group">
+      <label>Description (optional)</label>
+      <textarea name="description" class="form-input" rows="2" placeholder="More details…"></textarea>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Date</label>
+        <input type="date" name="date" value="{{ today }}" class="form-input"/>
+      </div>
+      <div class="form-group">
+        <label>Time</label>
+        <input type="time" name="due_time" class="form-input"/>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Priority</label>
+        <select name="priority" class="form-input">
+          <option>High</option><option selected>Medium</option><option>Low</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Category</label>
+        <input type="text" name="category" class="form-input" placeholder="Work, Study, Personal…"/>
+      </div>
+    </div>
+    <div class="form-group">
+      <label><input type="checkbox" name="important"/> ⭐ Mark as Important</label>
+    </div>
+    <div class="form-actions">
+      <button type="button" class="btn-secondary" onclick="closeActiveModal()">Cancel</button>
+      <button type="submit" class="btn-primary">Add Task</button>
+    </div>
+  </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function toggleTask(id) {
+  fetch('/toggle-task/' + id, {method:'POST'})
+    .then(r => r.json()).then(() => location.reload());
+}
+</script>
+{% endblock %}

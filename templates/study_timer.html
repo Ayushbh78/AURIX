@@ -1,0 +1,1000 @@
+{% extends "base.html" %}
+{% block topbar_title %}Study Session Timer{% endblock %}
+
+{% block content %}
+<div class="st-page">
+
+  <!-- ═══ HERO BANNER ═══════════════════════════════════════════════ -->
+  <div class="st-hero">
+    <div class="st-hero-left">
+      <div class="st-hero-icon">⏱</div>
+      <div>
+        <div class="st-hero-title">Study Session Timer</div>
+        <div class="st-hero-sub">Track your focus • Build consistency • Own your growth</div>
+      </div>
+    </div>
+    <div class="st-hero-stats">
+      <div class="st-hero-stat">
+        <div class="st-hero-stat-num" id="hs-today-total">0m</div>
+        <div class="st-hero-stat-label">Today</div>
+      </div>
+      <div class="st-hero-stat-divider"></div>
+      <div class="st-hero-stat">
+        <div class="st-hero-stat-num" id="hs-week-total">0h</div>
+        <div class="st-hero-stat-label">This Week</div>
+      </div>
+      <div class="st-hero-stat-divider"></div>
+      <div class="st-hero-stat">
+        <div class="st-hero-stat-num" id="hs-sessions-count">0</div>
+        <div class="st-hero-stat-label">Sessions</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ MAIN GRID ══════════════════════════════════════════════════ -->
+  <div class="st-grid">
+
+    <!-- LEFT COLUMN: Timer Panel -->
+    <div class="st-left">
+
+      <!-- Active Timer Card -->
+      <div class="card st-timer-card" id="st-active-card">
+        <div class="st-timer-header">
+          <div class="st-timer-pulse-dot" id="st-pulse-dot"></div>
+          <span class="st-timer-status-label" id="st-status-label">No Active Session</span>
+        </div>
+
+        <!-- Big Clock -->
+        <div class="st-clock-wrap">
+          <div class="st-clock" id="st-main-clock">00:00:00</div>
+          <div class="st-clock-sub" id="st-clock-sub">Ready to start</div>
+        </div>
+
+        <!-- Active session info -->
+        <div class="st-session-info hidden" id="st-session-info">
+          <div class="st-info-chip" id="st-info-subject">📚 Subject</div>
+          <div class="st-info-chip" id="st-info-chapter">📖 Chapter</div>
+        </div>
+
+        <!-- Action buttons -->
+        <div class="st-timer-actions">
+          <button class="btn-primary st-start-btn" id="st-start-btn" onclick="openStartSessionModal()">
+            ▶ Start Session
+          </button>
+          <button class="btn-danger-outline st-stop-btn hidden" id="st-stop-btn" onclick="stopActiveSession()">
+            ⏹ Stop Session
+          </button>
+        </div>
+      </div>
+
+      <!-- Multiple Active Sessions (if more than 1) -->
+      <div id="st-multi-sessions" class="hidden">
+        <div class="st-section-label">🟢 All Running Sessions</div>
+        <div id="st-multi-list"></div>
+      </div>
+
+      <!-- Today Summary Card -->
+      <div class="card st-today-card">
+        <div class="card-header">
+          <div class="card-icon ci-emerald">📅</div>
+          <div class="card-title">Today's Study</div>
+          <div class="st-today-total" id="st-today-total-display">0 min</div>
+        </div>
+        <div id="st-today-chapters">
+          <div class="st-empty-msg">No sessions logged today yet.</div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- RIGHT COLUMN: Analytics + History -->
+    <div class="st-right">
+
+      <!-- Subject Analytics -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-icon ci-indigo">📊</div>
+          <div class="card-title">Subject Analytics</div>
+          <select class="st-period-select" id="subject-period-select" onchange="stSaveFilter('subject-period-select',this.value);renderSubjectAnalytics()">
+            <option value="today">Today</option>
+            <option value="7">Last 7 days</option>
+            <option value="30">Last 30 days</option>
+            <option value="all">All time</option>
+          </select>
+        </div>
+        <div id="st-subject-analytics">
+          <div class="st-empty-msg">No data yet. Start a session!</div>
+        </div>
+      </div>
+
+      <!-- Chapter Analytics -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-icon ci-violet">📖</div>
+          <div class="card-title">Chapter Breakdown</div>
+        </div>
+        <div id="st-chapter-analytics">
+          <div class="st-empty-msg">No chapter data yet.</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══ FULL-WIDTH HISTORY ═════════════════════════════════════════ -->
+  <div class="card st-history-card">
+    <div class="card-header">
+      <div class="card-icon ci-amber">🕐</div>
+      <div class="card-title">Session History</div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <input type="text" class="st-search-input" id="st-history-search"
+               placeholder="🔍 Search sessions…" oninput="filterHistory(this.value)">
+        <select class="st-period-select" id="st-history-filter" onchange="stSaveFilter('st-history-filter',this.value);renderHistory()">
+          <option value="today">Today</option>
+          <option value="7">Last 7 days</option>
+          <option value="30">Last 30 days</option>
+          <option value="all">All time</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- History table -->
+    <div class="st-history-wrap">
+      <table class="st-history-table" id="st-history-table">
+        <thead>
+          <tr>
+            <th>Subject</th>
+            <th>Chapter</th>
+            <th>Date</th>
+            <th>Start</th>
+            <th>End</th>
+            <th>Duration</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="st-history-tbody">
+          <tr><td colspan="8" class="st-empty-msg">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ═══ WEEKLY SUMMARY ════════════════════════════════════════════ -->
+  <div class="two-col-grid" style="margin-top:0">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon ci-sky">📈</div>
+        <div class="card-title">Daily Study (Last 7 Days)</div>
+      </div>
+      <div id="st-weekly-bars" class="st-weekly-bars"></div>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon ci-coral">🏆</div>
+        <div class="card-title">Top Subjects</div>
+      </div>
+      <div id="st-top-subjects"></div>
+    </div>
+  </div>
+
+</div><!-- /.st-page -->
+
+<!-- ═══════════════════════════════════════════════════════
+     START SESSION MODAL
+═══════════════════════════════════════════════════════ -->
+<div class="st-modal-overlay hidden" id="st-modal-overlay" onclick="closeStartSessionModal()">
+  <div class="st-modal" onclick="event.stopPropagation()">
+
+    <div class="st-modal-header">
+      <div class="st-modal-title">
+        <span>▶</span> Start Study Session
+      </div>
+      <button class="st-modal-close" onclick="closeStartSessionModal()">✕</button>
+    </div>
+
+    <!-- Step 1: Choose mode -->
+    <div id="stm-step1">
+      <p class="st-modal-hint">What do you want to study?</p>
+      <button class="st-mode-btn" onclick="stmSelectMode('existing')">
+        <span class="st-mode-icon">📚</span>
+        <div>
+          <div class="st-mode-title">Link to Existing Chapter</div>
+          <div class="st-mode-sub">Pick from your subjects & exams</div>
+        </div>
+        <span class="st-mode-arrow">→</span>
+      </button>
+      <button class="st-mode-btn" onclick="stmSelectMode('new')">
+        <span class="st-mode-icon">✏️</span>
+        <div>
+          <div class="st-mode-title">Create New Chapter</div>
+          <div class="st-mode-sub">Add a new chapter to a subject and start</div>
+        </div>
+        <span class="st-mode-arrow">→</span>
+      </button>
+    </div>
+
+    <!-- Step 2A: Existing chapter picker -->
+    <div id="stm-step2a" class="hidden">
+      <button class="st-back-btn" onclick="stmBack()">← Back</button>
+      <div class="form-group" style="margin-top:12px">
+        <label>Search Chapters</label>
+        <input type="text" class="form-input" id="stm-search"
+               placeholder="Search by subject or chapter…"
+               oninput="stmFilterChapters(this.value)">
+      </div>
+      <div id="stm-chapter-list" class="st-chapter-list"></div>
+    </div>
+
+    <!-- Step 2B: Create new chapter -->
+    <div id="stm-step2b" class="hidden">
+      <button class="st-back-btn" onclick="stmBack()">← Back</button>
+      <div style="margin-top:12px">
+        <div class="form-group">
+          <label>Select Subject</label>
+          <select class="form-input" id="stm-subject-select" onchange="stmOnSubjectChange()">
+            <option value="">— Select a subject —</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>New Chapter Name</label>
+          <input type="text" class="form-input" id="stm-new-chapter-name"
+                 placeholder="e.g. Chapter 3 – Thermodynamics">
+        </div>
+        <button class="btn-primary" style="width:100%;padding:13px;margin-top:4px"
+                onclick="stmCreateAndStart()">
+          ✚ Create Chapter & Start Timer
+        </button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══ EDIT SESSION MODAL ═══════════════════════════════════════════ -->
+<div class="st-modal-overlay hidden" id="st-edit-overlay" onclick="closeEditModal()">
+  <div class="st-modal" onclick="event.stopPropagation()" style="max-width:440px">
+    <div class="st-modal-header">
+      <div class="st-modal-title">✏️ Edit Session</div>
+      <button class="st-modal-close" onclick="closeEditModal()">✕</button>
+    </div>
+    <div class="form-group">
+      <label>Start Time</label>
+      <input type="time" class="form-input" id="edit-start-time">
+    </div>
+    <div class="form-group">
+      <label>End Time</label>
+      <input type="time" class="form-input" id="edit-end-time">
+    </div>
+    <div class="form-group">
+      <label>Notes</label>
+      <textarea class="form-input" id="edit-notes" rows="2" placeholder="Session notes…"></textarea>
+    </div>
+    <input type="hidden" id="edit-sess-id">
+    <input type="hidden" id="edit-subj-id">
+    <input type="hidden" id="edit-chap-id">
+    <div class="btn-row">
+      <button class="btn-primary" onclick="saveEditSession()">Save Changes</button>
+      <button class="btn-secondary" onclick="closeEditModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+/* ════════════════════════════════════════════════════════════
+   STUDY TIMER PAGE — Full-featured session management
+   ════════════════════════════════════════════════════════════ */
+
+let _stAllChapters   = [];  // [{subject_id, subject_name, chapter_id, chapter_name, ...}]
+let _stAllSessions   = [];  // flat list of all sessions with metadata
+let _stActiveSessions= {};  // key → {sid,cid,startTs,interval}
+let _primaryActiveKey= null;// key of the primary displayed session
+let _historySearch   = '';
+
+/* ── Filter persistence (survive refresh/reopen) ───────────── */
+function stSaveFilter(id, value) {
+  try { localStorage.setItem('aurix_st_filter_' + id, value); } catch(e) {}
+}
+function stRestoreFilters() {
+  const defaults = { 'subject-period-select': 'today', 'st-history-filter': 'today' };
+  Object.entries(defaults).forEach(([id, def]) => {
+    const saved = (() => { try { return localStorage.getItem('aurix_st_filter_' + id); } catch(e) { return null; } })();
+    const el = document.getElementById(id);
+    if (el) el.value = saved || def;
+  });
+}
+
+/* ── Boot ──────────────────────────────────────────────────── */
+document.addEventListener('DOMContentLoaded', () => {
+  stRestoreFilters();
+  stLoadAll();
+  // Poll active sessions every 2s (for multi-tab sync)
+  setInterval(stPollActive, 2000);
+});
+
+async function stLoadAll() {
+  await stFetchActive();
+  await stFetchChapters();
+  // stFetchSessionHistory populates _stAllSessions then calls all render functions
+  await stFetchSessionHistory();
+}
+
+/* ── Fetch active sessions from server ─────────────────────── */
+async function stFetchActive() {
+  try {
+    const r = await fetch('/active-session-status');
+    const d = await r.json();
+    const running = d.study || [];
+    const seenKeys = new Set();
+    running.forEach(s => {
+      const key = `${s.subject_id}_${s.chapter_id}`;
+      seenKeys.add(key);
+      if (!_stActiveSessions[key]) {
+        _stActiveSessions[key] = {
+          sid: s.subject_id, cid: s.chapter_id,
+          chapterName: s.chapter_name || s.custom_name || `Chapter ${s.chapter_id}`,
+          subjectName: s.subject_name || s.custom_name || 'Free Session',
+          startTs: new Date(s.start).getTime()
+        };
+        _stActiveSessions[key].interval = setInterval(() => stTickTimer(key), 1000);
+      }
+    });
+    // Remove sessions no longer running
+    Object.keys(_stActiveSessions).forEach(k => {
+      if (!seenKeys.has(k)) {
+        clearInterval(_stActiveSessions[k].interval);
+        delete _stActiveSessions[k];
+      }
+    });
+    stRenderTimerUI();
+    updateNavBadge(Object.keys(_stActiveSessions).length);
+  } catch(e) { console.error('stFetchActive:', e); }
+}
+
+async function stFetchChapters() {
+  try {
+    const r = await fetch('/api/chapters-list');
+    const d = await r.json();
+    _stAllChapters = d.chapters || [];
+    // Do NOT call stBuildSessionList here — stLoadAll handles the full render sequence
+  } catch(e) { console.error('stFetchChapters:', e); }
+}
+
+function stPollActive() { stFetchActive(); }
+
+/* ── Build flat sessions array from chapters ───────────────── */
+function stBuildSessionList() {
+  // _stAllSessions is populated by stFetchSessionHistory via /api/study-sessions
+  // This stub is kept for compatibility; stLoadAll controls the load sequence
+}
+
+async function stFetchSessionHistory() {
+  try {
+    const r = await fetch('/api/study-sessions');
+    const d = await r.json();
+    _stAllSessions = d.sessions || [];
+    renderTodayChapters();
+    renderHistory();
+    renderSubjectAnalytics();
+    updateHeroStats();
+    renderWeeklyBars();
+    renderTopSubjects();
+  } catch(e) {
+    // Fallback: derive from chapters-list
+    renderTodayChapters();
+  }
+}
+
+/* ── Timer UI ──────────────────────────────────────────────── */
+function stTickTimer(key) {
+  const sess = _stActiveSessions[key];
+  if (!sess) return;
+  const elapsed = Math.floor((Date.now() - sess.startTs) / 1000);
+  const h = Math.floor(elapsed/3600);
+  const m = Math.floor((elapsed%3600)/60);
+  const s = elapsed%60;
+  const fmt = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+
+  // Update primary clock
+  if (key === _primaryActiveKey || !_primaryActiveKey) {
+    document.getElementById('st-main-clock').textContent = fmt;
+  }
+  // Update multi-session tile if exists
+  const tile = document.getElementById(`st-multi-clock-${key.replace(/[^a-z0-9]/gi,'_')}`);
+  if (tile) tile.textContent = fmt;
+}
+
+function stRenderTimerUI() {
+  const keys = Object.keys(_stActiveSessions);
+  const startBtn = document.getElementById('st-start-btn');
+  const stopBtn  = document.getElementById('st-stop-btn');
+  const pulseDot = document.getElementById('st-pulse-dot');
+  const statusLabel = document.getElementById('st-status-label');
+  const sessionInfo = document.getElementById('st-session-info');
+  const multiSection = document.getElementById('st-multi-sessions');
+
+  if (keys.length === 0) {
+    _primaryActiveKey = null;
+    document.getElementById('st-main-clock').textContent = '00:00:00';
+    document.getElementById('st-clock-sub').textContent = 'Ready to start';
+    startBtn.classList.remove('hidden');
+    stopBtn.classList.add('hidden');
+    pulseDot.classList.remove('active');
+    statusLabel.textContent = 'No Active Session';
+    sessionInfo.classList.add('hidden');
+    multiSection.classList.add('hidden');
+  } else {
+    // Pick first as primary
+    if (!_primaryActiveKey || !_stActiveSessions[_primaryActiveKey]) {
+      _primaryActiveKey = keys[0];
+    }
+    const primary = _stActiveSessions[_primaryActiveKey];
+    startBtn.classList.add('hidden');
+    stopBtn.classList.remove('hidden');
+    pulseDot.classList.add('active');
+    statusLabel.textContent = '● Recording…';
+    sessionInfo.classList.remove('hidden');
+    document.getElementById('st-info-subject').textContent = `📚 ${primary.subjectName || 'Free session'}`;
+    document.getElementById('st-info-chapter').textContent = `📖 ${primary.chapterName}`;
+    document.getElementById('st-clock-sub').textContent = `Started at ${new Date(primary.startTs).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'})}`;
+
+    if (keys.length > 1) {
+      multiSection.classList.remove('hidden');
+      renderMultiSessions(keys);
+    } else {
+      multiSection.classList.add('hidden');
+    }
+  }
+}
+
+function renderMultiSessions(keys) {
+  const el = document.getElementById('st-multi-list');
+  el.innerHTML = keys.map(key => {
+    const sess = _stActiveSessions[key];
+    const safeKey = key.replace(/[^a-z0-9]/gi,'_');
+    const elapsed = Math.floor((Date.now() - sess.startTs) / 1000);
+    const h=Math.floor(elapsed/3600), m=Math.floor((elapsed%3600)/60), s=elapsed%60;
+    const fmt = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+    const isPrimary = key === _primaryActiveKey;
+    return `
+      <div class="st-multi-tile ${isPrimary ? 'st-multi-primary' : ''}" onclick="setPrimarySession('${key}')">
+        <div class="st-tile-info">
+          <div class="st-tile-ch">${sess.chapterName}</div>
+          <div class="st-tile-subj">${sess.subjectName || 'Free'}</div>
+        </div>
+        <div class="st-tile-actions">
+          <div class="st-multi-clock" id="st-multi-clock-${safeKey}">${fmt}</div>
+          <button class="st-stop-mini" onclick="event.stopPropagation();stopSessionByKey('${key}')">⏹</button>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function setPrimarySession(key) {
+  _primaryActiveKey = key;
+  stRenderTimerUI();
+}
+
+/* ── Stop session ──────────────────────────────────────────── */
+async function stopActiveSession() {
+  if (!_primaryActiveKey) return;
+  await stopSessionByKey(_primaryActiveKey);
+}
+
+async function stopSessionByKey(key) {
+  const sess = _stActiveSessions[key];
+  if (!sess) return;
+  const btn = document.getElementById('st-stop-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Saving…'; }
+
+  try {
+    const fd = new FormData();
+    fd.append('subject_id', sess.sid);
+    fd.append('chapter_id', sess.cid);
+    const r = await fetch('/stop-study-session', {method:'POST', body:fd});
+    const d = await r.json();
+
+    clearInterval(sess.interval);
+    delete _stActiveSessions[key];
+    if (key === _primaryActiveKey) _primaryActiveKey = null;
+
+    if (d.status === 'ok') {
+      showGlobalToast(`✅ Session saved — ${d.duration_mins} min`);
+    } else {
+      showGlobalToast(d.msg || 'Session ended');
+    }
+    stRenderTimerUI();
+    updateNavBadge(Object.keys(_stActiveSessions).length);
+    await stFetchChapters();
+    await stFetchSessionHistory();
+  } catch(e) {
+    showGlobalToast('Error saving session');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '⏹ Stop Session'; }
+  }
+}
+
+/* ── Today chapters summary ────────────────────────────────── */
+function renderTodayChapters() {
+  const el = document.getElementById('st-today-chapters');
+  const today = new Date().toISOString().slice(0,10);
+  const todaySess = _stAllSessions.filter(s => s.date === today);
+
+  if (!todaySess.length) {
+    el.innerHTML = '<div class="st-empty-msg">No sessions logged today yet.</div>';
+    document.getElementById('st-today-total-display').textContent = '0 min';
+    return;
+  }
+
+  // Group by chapter
+  const groups = {};
+  todaySess.forEach(s => {
+    const k = `${s.subject_name}|${s.chapter_name}`;
+    if (!groups[k]) groups[k] = {subject: s.subject_name, chapter: s.chapter_name, totalMins: 0, count: 0};
+    groups[k].totalMins += Math.round(s.duration * 60);
+    groups[k].count++;
+  });
+
+  const totalMins = Object.values(groups).reduce((a,b) => a + b.totalMins, 0);
+  const h = Math.floor(totalMins/60), m = totalMins%60;
+  document.getElementById('st-today-total-display').textContent = h ? `${h}h ${m}m` : `${m} min`;
+
+  el.innerHTML = Object.values(groups).map(g => `
+    <div class="st-today-row">
+      <div>
+        <div class="st-today-ch">${g.chapter}</div>
+        <div class="st-today-subj">${g.subject}</div>
+      </div>
+      <div class="st-today-right">
+        <div class="st-today-mins">${g.totalMins} min</div>
+        <div class="st-today-count">${g.count} session${g.count!==1?'s':''}</div>
+      </div>
+    </div>`).join('');
+}
+
+/* ── Hero stats ────────────────────────────────────────────── */
+function updateHeroStats() {
+  const today = new Date().toISOString().slice(0,10);
+  const weekAgo = new Date(Date.now() - 7*864e5).toISOString().slice(0,10);
+
+  const todayMins = _stAllSessions
+    .filter(s => s.date === today)
+    .reduce((a,s) => a + Math.round(s.duration*60), 0);
+  const weekMins = _stAllSessions
+    .filter(s => s.date >= weekAgo)
+    .reduce((a,s) => a + Math.round(s.duration*60), 0);
+
+  const th = Math.floor(todayMins/60), tm = todayMins%60;
+  const wh = Math.floor(weekMins/60), wm = weekMins%60;
+
+  document.getElementById('hs-today-total').textContent = th ? `${th}h ${tm}m` : `${todayMins}m`;
+  document.getElementById('hs-week-total').textContent  = wh ? `${wh}h ${wm}m` : `${weekMins}m`;
+  document.getElementById('hs-sessions-count').textContent = _stAllSessions.length;
+}
+
+/* ── Subject analytics ─────────────────────────────────────── */
+function renderSubjectAnalytics() {
+  const el = document.getElementById('st-subject-analytics');
+  const days = document.getElementById('subject-period-select')?.value;
+  const today = new Date().toISOString().slice(0,10);
+  const cutoff = days === 'all' ? '1970-01-01' :
+    days === 'today' ? today :
+    new Date(Date.now() - parseInt(days)*864e5).toISOString().slice(0,10);
+
+  const filtered = _stAllSessions.filter(s =>
+    days === 'today' ? s.date === today : s.date >= cutoff
+  );
+  if (!filtered.length) {
+    el.innerHTML = '<div class="st-empty-msg">No data for this period.</div>'; return;
+  }
+
+  const subjectMap = {};
+  filtered.forEach(s => {
+    if (!subjectMap[s.subject_name]) subjectMap[s.subject_name] = {mins: 0, sessions: 0};
+    subjectMap[s.subject_name].mins += Math.round(s.duration*60);
+    subjectMap[s.subject_name].sessions++;
+  });
+
+  const sorted = Object.entries(subjectMap).sort((a,b) => b[1].mins - a[1].mins);
+  const maxMins = sorted[0]?.[1].mins || 1;
+
+  el.innerHTML = sorted.map(([name, data]) => {
+    const h = Math.floor(data.mins/60), m = data.mins%60;
+    const pct = Math.round(data.mins/maxMins*100);
+    return `
+      <div class="st-analytics-row">
+        <div class="st-analytics-label">${name}</div>
+        <div class="st-analytics-bar-wrap">
+          <div class="st-analytics-bar" style="width:${pct}%"></div>
+        </div>
+        <div class="st-analytics-time">${h ? h+'h '+m+'m' : m+'m'}</div>
+        <div class="st-analytics-count">${data.sessions}s</div>
+      </div>`;
+  }).join('');
+}
+
+/* ── Chapter analytics ─────────────────────────────────────── */
+function renderChapterAnalytics() {
+  const el = document.getElementById('st-chapter-analytics');
+  if (!_stAllSessions.length) {
+    el.innerHTML = '<div class="st-empty-msg">No chapter data yet.</div>'; return;
+  }
+
+  const chapMap = {};
+  _stAllSessions.forEach(s => {
+    const k = `${s.subject_name}|${s.chapter_name}`;
+    if (!chapMap[k]) chapMap[k] = {subject: s.subject_name, chapter: s.chapter_name, mins: 0, sessions: 0, lastDate: ''};
+    chapMap[k].mins += Math.round(s.duration*60);
+    chapMap[k].sessions++;
+    if (s.date > chapMap[k].lastDate) chapMap[k].lastDate = s.date;
+  });
+
+  const sorted = Object.values(chapMap).sort((a,b) => b.mins - a.mins).slice(0,10);
+  const maxMins = sorted[0]?.mins || 1;
+
+  el.innerHTML = sorted.map(data => {
+    const h = Math.floor(data.mins/60), m = data.mins%60;
+    const pct = Math.round(data.mins/maxMins*100);
+    return `
+      <div class="st-analytics-row">
+        <div class="st-analytics-label">
+          <div style="font-weight:700;font-size:12px">${data.chapter}</div>
+          <div style="font-size:10px;color:var(--text3)">${data.subject}</div>
+        </div>
+        <div class="st-analytics-bar-wrap">
+          <div class="st-analytics-bar" style="width:${pct}%;background:linear-gradient(90deg,var(--violet),var(--indigo))"></div>
+        </div>
+        <div class="st-analytics-time">${h ? h+'h '+m+'m' : m+'m'}</div>
+        <div class="st-analytics-count">${data.sessions}s</div>
+      </div>`;
+  }).join('');
+}
+
+/* ── History table ─────────────────────────────────────────── */
+function filterHistory(q) {
+  _historySearch = q.toLowerCase();
+  renderHistory();
+}
+
+function renderHistory() {
+  const tbody = document.getElementById('st-history-tbody');
+  const period = document.getElementById('st-history-filter')?.value || '30';
+  const today = new Date().toISOString().slice(0,10);
+  const cutoff = period === 'today' ? today :
+    period === 'all' ? '1970-01-01' :
+    new Date(Date.now() - parseInt(period)*864e5).toISOString().slice(0,10);
+  const startDate = period === 'today' ? today : cutoff;
+
+  let sessions = _stAllSessions.filter(s => s.date >= startDate && (period !== 'today' || s.date === today));
+
+  if (_historySearch) {
+    sessions = sessions.filter(s =>
+      s.subject_name.toLowerCase().includes(_historySearch) ||
+      s.chapter_name.toLowerCase().includes(_historySearch)
+    );
+  }
+
+  // Sort newest first
+  sessions = sessions.slice().sort((a,b) => {
+    if (b.date !== a.date) return b.date.localeCompare(a.date);
+    return (b.start_time||'').localeCompare(a.start_time||'');
+  });
+
+  if (!sessions.length) {
+    tbody.innerHTML = '<tr><td colspan="8" class="st-empty-msg">No sessions found.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = sessions.map(s => {
+    const mins = Math.round(s.duration * 60);
+    const h = Math.floor(mins/60), m = mins%60;
+    const dur = h ? `${h}h ${m}m` : `${m}m`;
+    const statusCls = s.status === 'Completed' ? 'st-badge-done' : 'st-badge-live';
+    const statusTxt = s.status || 'Completed';
+    const dateFormatted = formatDate(s.date);
+    return `
+      <tr class="st-history-row">
+        <td><span class="st-h-subject">${s.subject_name}</span></td>
+        <td><span class="st-h-chapter">${s.chapter_name}</span></td>
+        <td class="st-h-date">${dateFormatted}</td>
+        <td class="st-h-time">${s.start_time||'—'}</td>
+        <td class="st-h-time">${s.end_time||'—'}</td>
+        <td><span class="st-h-dur">${dur}</span></td>
+        <td><span class="st-badge ${statusCls}">${statusTxt}</span></td>
+        <td>
+          <div class="st-h-actions">
+            <button class="btn-xs btn-secondary" onclick="openEditModal(${s.sess_id},${s.subject_id},${s.chapter_id},'${s.start_time||''}','${s.end_time||''}','${(s.notes||'').replace(/'/g,"\\'")}')" title="Edit">✏️</button>
+            <button class="btn-xs btn-danger-outline" onclick="deleteSession(${s.sess_id},${s.subject_id},${s.chapter_id})" title="Delete">🗑</button>
+          </div>
+        </td>
+      </tr>`;
+  }).join('');
+}
+
+function formatDate(dateStr) {
+  if (!dateStr) return '—';
+  const d = new Date(dateStr + 'T00:00:00');
+  return d.toLocaleDateString('en-IN', {day:'2-digit', month:'short', year:'numeric'});
+}
+
+/* ── Weekly bars ───────────────────────────────────────────── */
+function renderWeeklyBars() {
+  const el = document.getElementById('st-weekly-bars');
+  const days = [];
+  const today = new Date();
+  for (let i=6; i>=0; i--) {
+    const d = new Date(today.getTime() - i*864e5);
+    days.push(d.toISOString().slice(0,10));
+  }
+
+  const dayMins = {};
+  days.forEach(d => { dayMins[d] = 0; });
+  _stAllSessions.forEach(s => { if (dayMins[s.date] !== undefined) dayMins[s.date] += Math.round(s.duration*60); });
+  const maxM = Math.max(...Object.values(dayMins), 1);
+
+  el.innerHTML = `<div class="st-bar-chart">${days.map(d => {
+    const mins = dayMins[d];
+    const pct  = Math.round(mins/maxM*100);
+    const h    = Math.floor(mins/60), m = mins%60;
+    const label = new Date(d+'T00:00:00').toLocaleDateString('en-IN',{weekday:'short'});
+    const isToday = d === new Date().toISOString().slice(0,10);
+    return `
+      <div class="st-bar-col">
+        <div class="st-bar-tip">${h ? h+'h '+m+'m' : m+'m'}</div>
+        <div class="st-bar-outer">
+          <div class="st-bar-fill ${isToday ? 'st-bar-today' : ''}" style="height:${pct}%"></div>
+        </div>
+        <div class="st-bar-day ${isToday ? 'st-bar-day-today' : ''}">${label}</div>
+      </div>`;
+  }).join('')}</div>`;
+}
+
+/* ── Top subjects ──────────────────────────────────────────── */
+function renderTopSubjects() {
+  const el = document.getElementById('st-top-subjects');
+  const map = {};
+  _stAllSessions.forEach(s => {
+    if (!map[s.subject_name]) map[s.subject_name] = 0;
+    map[s.subject_name] += Math.round(s.duration*60);
+  });
+  const sorted = Object.entries(map).sort((a,b) => b[1]-a[1]).slice(0,6);
+  if (!sorted.length) { el.innerHTML = '<div class="st-empty-msg">No data yet.</div>'; return; }
+  const maxM = sorted[0][1];
+  el.innerHTML = sorted.map(([name, mins], i) => {
+    const h=Math.floor(mins/60), m=mins%60;
+    const pct=Math.round(mins/maxM*100);
+    const colors=['var(--indigo)','var(--violet)','var(--coral)','var(--emerald)','var(--amber)','var(--sky)'];
+    return `
+      <div class="st-top-row">
+        <div class="st-top-rank">${i+1}</div>
+        <div class="st-top-info">
+          <div class="st-top-name">${name}</div>
+          <div class="st-top-bar-wrap">
+            <div class="st-top-bar" style="width:${pct}%;background:${colors[i]||'var(--indigo)'}"></div>
+          </div>
+        </div>
+        <div class="st-top-time">${h ? h+'h '+m+'m' : m+'m'}</div>
+      </div>`;
+  }).join('');
+}
+
+/* ════════════════════════════════════════════════════════════
+   START SESSION MODAL
+════════════════════════════════════════════════════════════ */
+function openStartSessionModal() {
+  document.getElementById('st-modal-overlay').classList.remove('hidden');
+  stmBack();
+  // Pre-load chapters
+  fetch('/api/chapters-list').then(r=>r.json()).then(d => {
+    _stAllChapters = d.chapters || [];
+    stmRenderChapterList(_stAllChapters);
+    populateSubjectSelect();
+  });
+}
+function closeStartSessionModal() {
+  document.getElementById('st-modal-overlay').classList.add('hidden');
+}
+
+function stmSelectMode(mode) {
+  document.getElementById('stm-step1').classList.add('hidden');
+  if (mode === 'existing') {
+    document.getElementById('stm-step2a').classList.remove('hidden');
+    stmRenderChapterList(_stAllChapters);
+    setTimeout(() => document.getElementById('stm-search')?.focus(), 80);
+  } else {
+    document.getElementById('stm-step2b').classList.remove('hidden');
+    populateSubjectSelect();
+    setTimeout(() => document.getElementById('stm-new-chapter-name')?.focus(), 80);
+  }
+}
+
+function stmBack() {
+  document.getElementById('stm-step2a').classList.add('hidden');
+  document.getElementById('stm-step2b').classList.add('hidden');
+  document.getElementById('stm-step1').classList.remove('hidden');
+}
+
+function stmFilterChapters(q) {
+  const filtered = q ? _stAllChapters.filter(ch =>
+    ch.chapter_name.toLowerCase().includes(q.toLowerCase()) ||
+    ch.subject_name.toLowerCase().includes(q.toLowerCase()) ||
+    (ch.exam_name||'').toLowerCase().includes(q.toLowerCase())
+  ) : _stAllChapters;
+  stmRenderChapterList(filtered);
+}
+
+function stmRenderChapterList(list) {
+  const el = document.getElementById('stm-chapter-list');
+  if (!list.length) {
+    el.innerHTML = '<div class="st-empty-msg">No chapters found. Add chapters in Study first.</div>';
+    return;
+  }
+  // Group by subject
+  const groups = {};
+  list.forEach(ch => {
+    const k = ch.subject_name + (ch.exam_name ? ` (${ch.exam_name})` : '');
+    if (!groups[k]) groups[k] = [];
+    groups[k].push(ch);
+  });
+
+  el.innerHTML = Object.entries(groups).map(([grpName, chs]) => `
+    <div class="st-group-label">${grpName}</div>
+    ${chs.map(ch => {
+      const isRunning = !!_stActiveSessions[`${ch.subject_id}_${ch.chapter_id}`];
+      return `
+        <div class="st-ch-row ${isRunning ? 'st-ch-running' : ''}"
+             onclick="${isRunning ? '' : `stmStartExisting(${ch.subject_id},${ch.chapter_id},'${ch.chapter_name.replace(/'/g,"\\'")}')`}">
+          <div>
+            <div class="st-ch-name">${ch.chapter_name}</div>
+            <div class="st-ch-meta">${ch.status} · ${ch.total_sessions} session${ch.total_sessions!==1?'s':''} · ${ch.actual_hours||0}h</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+            ${ch.today_mins ? `<span class="st-ch-today">${ch.today_mins}m today</span>` : ''}
+            ${isRunning
+              ? `<span class="st-badge st-badge-live">● Running</span>`
+              : `<button class="btn-xs btn-primary">▶ Start</button>`}
+          </div>
+        </div>`;
+    }).join('')}
+  `).join('');
+}
+
+async function stmStartExisting(sid, cid, chName) {
+  closeStartSessionModal();
+  const fd = new FormData();
+  fd.append('subject_id', sid);
+  fd.append('chapter_id', cid);
+  try {
+    const r = await fetch('/start-study-session', {method:'POST', body:fd});
+    const d = await r.json();
+    if (d.status === 'ok' || d.status === 'already') {
+      const key = `${sid}_${cid}`;
+      if (!_stActiveSessions[key]) {
+        const subj = _stAllChapters.find(c => c.subject_id===sid && c.chapter_id===cid);
+        _stActiveSessions[key] = {
+          sid, cid, chapterName: chName,
+          subjectName: subj?.subject_name || '',
+          startTs: new Date(d.start).getTime()
+        };
+        _stActiveSessions[key].interval = setInterval(() => stTickTimer(key), 1000);
+      }
+      _primaryActiveKey = `${sid}_${cid}`;
+      stRenderTimerUI();
+      updateNavBadge(Object.keys(_stActiveSessions).length);
+      showGlobalToast(`▶ Started: ${chName}`);
+    } else {
+      showGlobalToast(d.msg || 'Error starting session');
+    }
+  } catch(e) { showGlobalToast('Error starting session'); }
+}
+
+/* ── Create new chapter + start ───────────────────────────── */
+function populateSubjectSelect() {
+  const sel = document.getElementById('stm-subject-select');
+  const subjects = [...new Set(_stAllChapters.map(c => `${c.subject_id}|${c.subject_name}`))];
+  sel.innerHTML = '<option value="">— Select a subject —</option>' +
+    subjects.map(s => {
+      const [id, name] = s.split('|');
+      return `<option value="${id}">${name}</option>`;
+    }).join('');
+}
+
+function stmOnSubjectChange() {
+  // Could show existing chapters for that subject as hint
+}
+
+async function stmCreateAndStart() {
+  const subjectId = parseInt(document.getElementById('stm-subject-select').value);
+  const chName    = document.getElementById('stm-new-chapter-name').value.trim();
+  if (!subjectId) { showGlobalToast('Please select a subject'); return; }
+  if (!chName)    { showGlobalToast('Please enter a chapter name'); return; }
+
+  // Find subject to determine if it's under an exam
+  const fd = new FormData();
+  fd.append('name', chName);
+  try {
+    // Create chapter via existing endpoint
+    const r = await fetch(`/add-chapter/${subjectId}`, {method:'POST', body:fd});
+    // After creation, fetch the chapter list to get the new chapter's ID
+    const r2 = await fetch('/api/chapters-list');
+    const d2 = await r2.json();
+    _stAllChapters = d2.chapters || [];
+    // Find the newly created chapter
+    const newCh = _stAllChapters.find(c => c.subject_id === subjectId && c.chapter_name === chName);
+    if (newCh) {
+      closeStartSessionModal();
+      await stmStartExisting(newCh.subject_id, newCh.chapter_id, newCh.chapter_name);
+    } else {
+      closeStartSessionModal();
+      showGlobalToast(`Chapter created. Refresh to start a session.`);
+    }
+  } catch(e) {
+    showGlobalToast('Error creating chapter');
+  }
+}
+
+/* ════════════════════════════════════════════════════════════
+   EDIT / DELETE
+════════════════════════════════════════════════════════════ */
+function openEditModal(sessId, subjId, chapId, startTime, endTime, notes) {
+  document.getElementById('edit-sess-id').value = sessId;
+  document.getElementById('edit-subj-id').value = subjId;
+  document.getElementById('edit-chap-id').value = chapId;
+  document.getElementById('edit-start-time').value = startTime;
+  document.getElementById('edit-end-time').value   = endTime;
+  document.getElementById('edit-notes').value       = notes;
+  document.getElementById('st-edit-overlay').classList.remove('hidden');
+}
+function closeEditModal() {
+  document.getElementById('st-edit-overlay').classList.add('hidden');
+}
+
+async function saveEditSession() {
+  const sessId = document.getElementById('edit-sess-id').value;
+  const subjId = document.getElementById('edit-subj-id').value;
+  const chapId = document.getElementById('edit-chap-id').value;
+  const startT = document.getElementById('edit-start-time').value;
+  const endT   = document.getElementById('edit-end-time').value;
+  const notes  = document.getElementById('edit-notes').value;
+  const fd = new FormData();
+  fd.append('sess_id', sessId);
+  fd.append('subject_id', subjId);
+  fd.append('chapter_id', chapId);
+  fd.append('start_time', startT);
+  fd.append('end_time', endT);
+  fd.append('notes', notes);
+  try {
+    const r = await fetch('/api/edit-study-session', {method:'POST', body:fd});
+    const d = await r.json();
+    if (d.status === 'ok') {
+      showGlobalToast('✅ Session updated');
+      closeEditModal();
+      await stFetchSessionHistory();
+    } else {
+      showGlobalToast(d.msg || 'Error updating session');
+    }
+  } catch(e) { showGlobalToast('Error updating session'); }
+}
+
+async function deleteSession(sessId, subjId, chapId) {
+  if (!confirm('Delete this session?')) return;
+  const fd = new FormData();
+  fd.append('sess_id', sessId);
+  fd.append('subject_id', subjId);
+  fd.append('chapter_id', chapId);
+  try {
+    const r = await fetch('/api/delete-study-session', {method:'POST', body:fd});
+    const d = await r.json();
+    if (d.status === 'ok') {
+      showGlobalToast('🗑 Session deleted');
+      await stFetchSessionHistory();
+    } else {
+      showGlobalToast(d.msg || 'Error deleting session');
+    }
+  } catch(e) { showGlobalToast('Error deleting session'); }
+}
+</script>
+{% endblock %}

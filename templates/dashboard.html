@@ -1,0 +1,382 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block topbar_title %}Dashboard{% endblock %}
+
+{% block content %}
+<!-- Hero -->
+<div class="dashboard-hero">
+  <div class="hero-left">
+    <div class="hero-greeting">Welcome back, <span class="hero-name">{{ settings.name }}</span> 👋</div>
+    <div class="hero-sub">{{ today }} &nbsp;·&nbsp; Let's make today count</div>
+    <div class="hero-chips">
+      {% if habits %}<span class="hero-chip">🔥 {{ max_streak }}d streak</span>{% endif %}
+      {% if habits %}<span class="hero-chip">{{ habit_completion }}% habits done</span>{% endif %}
+      {% if upcoming_exams %}<span class="hero-chip">📅 {{ upcoming_exams|length }} exam{{ 's' if upcoming_exams|length != 1 }}</span>{% endif %}
+      {% if exercise_done > 0 %}<span class="hero-chip">🏋️ {{ exercise_done }} workout{{ 's' if exercise_done != 1 }}</span>{% endif %}
+    </div>
+  </div>
+  <div class="hero-right">
+    <div class="hero-ring-wrap">
+      {% if prod_score is not none %}
+      <svg class="hero-ring-svg" viewBox="0 0 100 100">
+        <circle cx="50" cy="50" r="44" class="hero-ring-bg"/>
+        <circle cx="50" cy="50" r="44" class="hero-ring-fill"
+          stroke-dasharray="{{ (prod_score / 100 * 276.5)|round(1) }} 276.5"/>
+      </svg>
+      <div class="hero-ring-label">
+        <div class="hero-ring-num">{{ prod_score }}</div>
+        <div class="hero-ring-text">Score</div>
+      </div>
+      {% else %}
+      <div class="hero-ring-nodata">No score<br>yet today</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- Quick Actions -->
+<div class="quick-actions">
+  <button class="qa-btn" onclick="openModal('modal-add-expense')"><span>💸</span> Add Expense</button>
+  <button class="qa-btn" onclick="openModal('modal-add-note')"><span>💭</span> Add Thought</button>
+  <button class="qa-btn" onclick="openModal('modal-mood')"><span>😊</span> Log Mood</button>
+</div>
+
+<!-- Exam Reminders -->
+{% if upcoming_exams %}
+<div class="exam-reminders-section">
+  <div class="section-label">📅 Upcoming Exam Reminders</div>
+  <div class="exam-reminders-grid">
+    {% for exam in upcoming_exams %}
+    <div class="exam-reminder-card
+      {% if exam.days_left is not none and exam.days_left <= 3 %}reminder-critical
+      {% elif exam.days_left is not none and exam.days_left <= 7 %}reminder-urgent
+      {% else %}reminder-normal{% endif %}">
+      <div class="reminder-left">
+        <div class="reminder-icon">
+          {% if exam.days_left is not none and exam.days_left <= 3 %}🚨
+          {% elif exam.days_left is not none and exam.days_left <= 7 %}⚠️
+          {% else %}📅{% endif %}
+        </div>
+        <div class="reminder-info">
+          <div class="reminder-name">{{ exam.name }}</div>
+          <div class="reminder-type">{{ exam.type }}</div>
+        </div>
+      </div>
+      <div class="reminder-right">
+        {% if exam.days_left is not none %}
+          {% if exam.days_left == 0 %}
+            <div class="reminder-days days-today">TODAY!</div>
+          {% elif exam.days_left < 0 %}
+            <div class="reminder-days days-past">{{ exam.days_left|abs }}d ago</div>
+          {% else %}
+            <div class="reminder-days {% if exam.days_left <= 3 %}days-critical{% elif exam.days_left <= 7 %}days-urgent{% else %}days-normal{% endif %}">
+              {{ exam.days_left }}d left
+            </div>
+          {% endif %}
+        {% endif %}
+        <div class="reminder-progress">{{ exam.progress }}% ready</div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<!-- Summary Cards -->
+<div class="cards-grid anim-stagger">
+  <div class="stat-card card-accent-indigo" style="--stat-color:var(--indigo)">
+    <div class="stat-card-bg-icon">✅</div>
+    <div class="stat-card-label">Habits Today</div>
+    {% if habits %}
+    <div class="stat-card-num">{{ logs_today|length }}<span class="denom">/{{ habits|length }}</span></div>
+    <div class="progress-bar-wrap"><div class="progress-bar" style="width:{{ habit_completion }}%"></div></div>
+    <div class="stat-card-sub">{{ habit_completion }}% complete · <a href="/habits" style="color:var(--accent)">View →</a></div>
+    {% else %}
+    <div class="stat-card-num">0</div>
+    <div class="stat-card-sub"><a href="/habits" style="color:var(--accent)">Add habits →</a></div>
+    {% endif %}
+  </div>
+
+  <div class="stat-card card-accent-coral" style="--stat-color:var(--coral)">
+    <div class="stat-card-bg-icon">💰</div>
+    <div class="stat-card-label">Spent Today</div>
+    <div class="stat-card-num">{{ currency }}{{ today_spend|int }}</div>
+    {% if budget > 0 %}
+    <div class="progress-bar-wrap">
+      <div class="progress-bar {% if budget_remaining < 0 %}bar-danger{% elif budget_remaining < budget * 0.2 %}bar-warn{% endif %}"
+           style="width:{{ [((budget - budget_remaining) / budget * 100)|int, 100]|min }}%"></div>
+    </div>
+    <div class="stat-card-sub">{{ currency }}{{ budget_remaining|int }} left · <a href="/spending" style="color:var(--coral)">View →</a></div>
+    {% else %}
+    <div class="stat-card-sub"><a href="/spending" style="color:var(--coral)">Track spending →</a></div>
+    {% endif %}
+  </div>
+
+  <div class="stat-card card-accent-violet" style="--stat-color:var(--violet)">
+    <div class="stat-card-bg-icon">🎯</div>
+    <div class="stat-card-label">Life Goals</div>
+    {% if goals %}
+    <div class="stat-card-num">{{ goals_completed }}<span class="denom">/{{ goals|length }}</span></div>
+    <div class="progress-bar-wrap">
+      <div class="progress-bar" style="width:{{ ((goals_completed / goals|length * 100) if goals else 0)|int }}%; background:linear-gradient(90deg,var(--violet),var(--rose))"></div>
+    </div>
+    <div class="stat-card-sub">{{ goals_pending }} pending · <a href="/goals" style="color:var(--violet)">View →</a></div>
+    {% else %}
+    <div class="stat-card-num">0</div>
+    <div class="stat-card-sub"><a href="/goals" style="color:var(--violet)">Set goals →</a></div>
+    {% endif %}
+  </div>
+
+  <div class="stat-card card-accent-emerald" style="--stat-color:var(--emerald)">
+    <div class="stat-card-bg-icon">📚</div>
+    <div class="stat-card-label">Chapters Done</div>
+    {% if total_chapters > 0 %}
+    <div class="stat-card-num">{{ completed_chapters }}<span class="denom">/{{ total_chapters }}</span></div>
+    <div class="progress-bar-wrap">
+      <div class="progress-bar bar-emerald" style="width:{{ ((completed_chapters / total_chapters * 100) if total_chapters else 0)|int }}%"></div>
+    </div>
+    <div class="stat-card-sub">{{ revision_pending }} revision pending · <a href="/study" style="color:var(--emerald)">View →</a></div>
+    {% else %}
+    <div class="stat-card-num">0</div>
+    <div class="stat-card-sub"><a href="/study" style="color:var(--emerald)">Add study →</a></div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Exercise Row -->
+{% if exercise_done > 0 or total_workouts > 0 %}
+<div class="cards-grid cards-grid-4 mb-20">
+  <div class="stat-card" style="--stat-color:var(--coral)">
+    <div class="stat-card-bg-icon">🏋️</div>
+    <div class="stat-card-label">Workouts Today</div>
+    <div class="stat-card-num">{{ exercise_done }}<span class="denom">/{{ total_workouts }}</span></div>
+    <div class="stat-card-sub"><a href="/exercise" style="color:var(--coral)">Log workout →</a></div>
+  </div>
+  <div class="stat-card" style="--stat-color:var(--amber)">
+    <div class="stat-card-bg-icon">⏱</div>
+    <div class="stat-card-label">Exercise Time</div>
+    <div class="stat-card-num">{{ exercise_mins_today }}<span class="denom">m</span></div>
+    <div class="stat-card-sub">Today</div>
+  </div>
+  <div class="stat-card" style="--stat-color:var(--emerald)">
+    <div class="stat-card-bg-icon">🔥</div>
+    <div class="stat-card-label">Exercise Streak</div>
+    <div class="stat-card-num">{{ exercise_streak }}<span class="denom">d</span></div>
+    <div class="stat-card-sub">Consecutive days</div>
+  </div>
+  <div class="stat-card" style="--stat-color:var(--violet)">
+    <div class="stat-card-bg-icon">📊</div>
+    <div class="stat-card-label">Insights</div>
+    <div class="stat-card-num" style="font-size:1.4rem">📈</div>
+    <div class="stat-card-sub"><a href="/insights" style="color:var(--violet)">View analytics →</a></div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Weekly Chart + Pending Tasks -->
+<div class="two-col-grid">
+  <div class="card">
+    <div class="card-header">
+      <div class="card-icon ci-indigo">📈</div>
+      <div class="card-title">7-Day Productivity</div>
+    </div>
+    {% set has_scores = weekly_scores|selectattr('score')|list %}
+    {% if has_scores %}
+    <div class="bar-chart-wrap">
+      {% for s in weekly_scores %}
+      <div class="bar-chart-col">
+        <div class="bar-chart-bar-wrap">
+          {% if s.score is not none and s.score > 0 %}
+          <div class="bar-chart-bar {% if s.score >= 70 %}bar-good{% elif s.score >= 40 %}bar-med{% else %}bar-low{% endif %}"
+               style="height:{{ s.score }}%" data-tip="{{ s.date[5:] }}: {{ s.score }}%"></div>
+          {% else %}
+          <div class="bar-chart-bar" style="height:3%;background:var(--bg4)" data-tip="{{ s.date[5:] }}: no data"></div>
+          {% endif %}
+        </div>
+        <div class="bar-chart-label">{{ s.date[5:] }}</div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="no-data-box" style="padding:24px">
+      <div class="no-data-icon">📊</div>
+      <div class="no-data-title">No score data yet</div>
+      <div class="no-data-sub">Complete habits and tasks to see your scores</div>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-icon ci-emerald">📚</div>
+      <div class="card-title">Study Overview</div>
+      <a href="/study" class="card-link">All →</a>
+    </div>
+    {% if upcoming_exams %}
+    {% for exam in upcoming_exams[:3] %}
+    <div class="dash-task">
+      <div class="dash-task-info">
+        <div class="dash-task-name">📋 {{ exam.name }}</div>
+        <div class="dash-task-meta">
+          {% if exam.days_left is not none %}
+            {% if exam.days_left <= 0 %}<span style="color:var(--danger)">Exam day!</span>
+            {% elif exam.days_left <= 7 %}<span style="color:var(--amber)">{{ exam.days_left }}d left</span>
+            {% else %}<span>{{ exam.days_left }}d left</span>{% endif %}
+          {% endif %}
+          · {{ exam.progress }}% ready
+        </div>
+        <div class="progress-bar-wrap" style="margin-top:4px">
+          <div class="progress-bar bar-emerald" style="width:{{ exam.progress }}%"></div>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+    {% else %}
+    <div class="empty-sm"><a href="/study" style="color:var(--emerald)">Add exams to track →</a></div>
+    {% endif %}
+    {% if revision_pending > 0 %}
+    <div style="margin-top:10px;padding:8px 12px;background:var(--bg3);border-radius:8px;font-size:13px;color:var(--amber)">
+      📝 {{ revision_pending }} chapter{{ 's' if revision_pending != 1 }} need revision
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Notes + Mood/Sleep -->
+<div class="two-col-grid">
+  <div class="card">
+    <div class="card-header">
+      <div class="card-icon ci-violet">💭</div>
+      <div class="card-title">Thoughts</div>
+      <a href="/thoughts" class="card-link">All →</a>
+    </div>
+    {% for t in thoughts_recent %}
+    <div class="dash-note">
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px">
+        <span class="thought-type-badge thought-type-{{ t.type|lower }}">{{ t.type }}</span>
+        {% if t.mood %}<span style="font-size:14px">{{ t.mood }}</span>{% endif %}
+      </div>
+      <div style="font-weight:600;font-size:13px;margin-bottom:2px">{{ t.title[:40] }}{% if t.title|length > 40 %}…{% endif %}</div>
+      <div style="color:var(--text3);font-size:12px">{{ t.content[:70] }}{% if t.content|length > 70 %}…{% endif %}</div>
+    </div>
+    {% endfor %}
+    {% if not thoughts_recent %}
+    <div class="empty-sm" style="font-size:12px">No thoughts yet — capture your first!</div>
+    {% endif %}
+    <form method="POST" action="/add-thought" class="inline-note-form">
+      <input type="hidden" name="date" value="{{ today }}"/>
+      <input type="hidden" name="type" value="Thought"/>
+      <input type="text" name="title" placeholder="Quick thought…" class="inline-input"/>
+      <button type="submit" class="inline-btn">Add</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-icon ci-sky">😊</div>
+      <div class="card-title">Today's Status</div>
+    </div>
+    <div class="mood-sleep-row">
+      <div class="ms-item">
+        <div class="ms-val">{{ mood_today if mood_today else '—' }}</div>
+        <div class="ms-label">Mood</div>
+      </div>
+      {% if last_sleep %}
+      <div class="ms-item">
+        <div class="ms-val">{{ last_sleep.hours }}h</div>
+        <div class="ms-label">Last Sleep</div>
+      </div>
+      <div class="ms-item">
+        <div class="ms-val">{{ last_sleep.wake_time }}</div>
+        <div class="ms-label">Wake Up</div>
+      </div>
+      {% else %}
+      <div class="ms-item"><div class="ms-val">—</div><div class="ms-label">No sleep log</div></div>
+      {% endif %}
+    </div>
+    {% if weak_subjects %}
+    <div class="card-divider"></div>
+    <div class="card-subtitle">⚠ Weak Subjects</div>
+    {% for ws in weak_subjects[:3] %}
+    <div class="weak-tag">{{ ws.name }} <span class="weak-exam">{{ ws.exam }}</span></div>
+    {% endfor %}
+    {% endif %}
+  </div>
+</div>
+
+<!-- Modals -->
+<div id="modal-add-expense" class="modal-content hidden">
+  <div class="modal-header"><h3>💸 Add Expense</h3></div>
+  <form method="POST" action="/add-expense">
+    <div class="form-row">
+      <div class="form-group"><label>Amount ({{ currency }})</label>
+        <input type="number" name="amount" step="0.01" required class="form-input" placeholder="0.00"/></div>
+      <div class="form-group"><label>Category</label>
+        <select name="category" class="form-input">
+          <option>Food</option><option>Travel</option><option>Shopping</option><option>Recharge</option>
+          <option>Education</option><option>Entertainment</option><option>Health</option>
+          <option>Bills</option><option>Investment</option><option>Other</option>
+        </select></div>
+    </div>
+    <div class="form-group"><label>Description</label>
+      <input type="text" name="description" class="form-input" placeholder="What was this for?"/></div>
+    <div class="form-row">
+      <div class="form-group"><label>Date</label>
+        <input type="date" name="date" value="{{ today }}" class="form-input"/></div>
+      <div class="form-group"><label>Payment</label>
+        <select name="payment_method" class="form-input">
+          <option>Cash</option><option>UPI</option><option>Card</option>
+        </select></div>
+    </div>
+    <div class="form-actions">
+      <button type="button" class="btn-secondary" onclick="closeActiveModal()">Cancel</button>
+      <button type="submit" class="btn-primary">Save</button>
+    </div>
+  </form>
+</div>
+
+<div id="modal-add-note" class="modal-content hidden">
+  <div class="modal-header"><h3>💭 Add Thought</h3></div>
+  <form method="POST" action="/add-thought">
+    <input type="hidden" name="date" value="{{ today }}"/>
+    <div class="form-group"><label>Title</label>
+      <input type="text" name="title" class="form-input" placeholder="Give it a title…"/></div>
+    <div class="form-group"><label>Content</label>
+      <textarea name="content" class="form-input" rows="4" placeholder="Write anything…"></textarea></div>
+    <div class="form-row">
+      <div class="form-group"><label>Type</label>
+        <select name="type" class="form-input">
+          <option>Thought</option><option>Journal</option><option>Idea</option><option>Reflection</option><option>Quote</option>
+        </select></div>
+      <div class="form-group"><label>Mood</label>
+        <select name="mood" class="form-input">
+          <option value="">—</option>
+          <option>😊</option><option>😔</option><option>💡</option><option>🔥</option><option>😐</option><option>🌙</option>
+        </select></div>
+    </div>
+    <div class="form-actions">
+      <button type="button" class="btn-secondary" onclick="closeActiveModal()">Cancel</button>
+      <button type="submit" class="btn-primary">Save Thought</button>
+    </div>
+  </form>
+</div>
+
+<div id="modal-mood" class="modal-content hidden">
+  <div class="modal-header"><h3>😊 How are you feeling?</h3></div>
+  <div class="mood-grid">
+    {% for mood in ['😄','😊','😐','😔','😤','😴','🔥','🎯','💪','😰'] %}
+    <button class="mood-btn" onclick="logMood('{{ mood }}','{{ today }}')">{{ mood }}</button>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function logMood(mood, date) {
+  fetch('/log-mood', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
+    body:'mood='+encodeURIComponent(mood)+'&date='+date})
+    .then(() => { closeActiveModal(); showToast('Mood: '+mood, 'success'); });
+}
+</script>
+{% endblock %}

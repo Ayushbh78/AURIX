@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% block title %}Calendar{% endblock %}
+{% block topbar_title %}Calendar{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Calendar</h1>
+    <p class="page-sub">Click any date for full daily breakdown · Colours reflect real productivity data only</p>
+  </div>
+  <div class="calendar-legend">
+    <span class="leg-dot leg-green"></span>High (≥70)
+    <span class="leg-dot leg-yellow" style="margin-left:8px"></span>Average
+    <span class="leg-dot leg-red" style="margin-left:8px"></span>Low
+    <span class="leg-dot leg-gray" style="margin-left:8px"></span>No data
+  </div>
+</div>
+
+<div class="card mb-20">
+  <div class="cal-nav">
+    <button class="cal-nav-btn" id="prev-month">←</button>
+    <div class="cal-month-title" id="cal-month-title">Loading…</div>
+    <button class="cal-nav-btn" id="next-month">→</button>
+  </div>
+  <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
+  <div class="cal-weekdays" style="min-width:280px">
+    {% for d in ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'] %}
+    <div class="cal-wd">{{ d }}</div>
+    {% endfor %}
+  </div>
+  <div class="cal-grid" id="cal-grid" style="min-width:280px"><div class="cal-loading">Loading calendar…</div></div>
+  </div>
+</div>
+
+<!-- Monthly Summary -->
+<div class="card" id="month-summary">
+  <div class="card-header">
+    <div class="card-icon ci-indigo">📅</div>
+    <div class="card-title" id="summary-title">Monthly Summary</div>
+  </div>
+  <div class="month-summary-grid" id="summary-grid">
+    <div class="summary-item"><div class="summary-num" id="s-productive">—</div><div class="summary-label">Productive Days</div></div>
+    <div class="summary-item"><div class="summary-num" id="s-habits">—</div><div class="summary-label">Avg Habits</div></div>
+    <div class="summary-item"><div class="summary-num" id="s-spend">—</div><div class="summary-label">Total Spent</div></div>
+    <div class="summary-item"><div class="summary-num" id="s-avg">—</div><div class="summary-label">Avg Score</div></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const TODAY = '{{ today_date.isoformat() }}';
+const CURRENCY = '{{ data.budget.currency }}';
+let calData = {};
+let currentYear = {{ today_date.year }};
+let currentMonth = {{ today_date.month }};
+const MONTHS = ['January','February','March','April','May','June',
+                'July','August','September','October','November','December'];
+
+fetch('/api/calendar-data')
+  .then(r => r.json())
+  .then(d => { calData = d; renderCalendar(currentYear, currentMonth); });
+
+document.getElementById('prev-month').onclick = () => {
+  currentMonth--; if (currentMonth < 1) { currentMonth = 12; currentYear--; }
+  renderCalendar(currentYear, currentMonth);
+};
+document.getElementById('next-month').onclick = () => {
+  currentMonth++; if (currentMonth > 12) { currentMonth = 1; currentYear++; }
+  renderCalendar(currentYear, currentMonth);
+};
+
+function renderCalendar(year, month) {
+  document.getElementById('cal-month-title').textContent = MONTHS[month-1] + ' ' + year;
+  const firstDay     = new Date(year, month-1, 1).getDay();
+  const daysInMonth  = new Date(year, month, 0).getDate();
+  const grid = document.getElementById('cal-grid');
+  grid.innerHTML = '';
+
+  let productive = 0, habitTotal = 0, spendTotal = 0;
+  let scoredDays = [], scoredCount = 0;
+
+  for (let i = 0; i < firstDay; i++) {
+    grid.innerHTML += '<div class="cal-cell cal-empty"></div>';
+  }
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = year + '-' + String(month).padStart(2,'0') + '-' + String(d).padStart(2,'0');
+    const info    = calData[dateStr] || {};
+    const score   = info.prod_score;   // may be null
+    const isToday = dateStr === TODAY;
+    const hasAct  = info.has_activity;
+
+    let cls = 'cal-cell-gray';
+    if (score !== null && score !== undefined) {
+      scoredCount++;
+      scoredDays.push(score);
+      if (score >= 70)  { cls = 'cal-cell-green'; productive++; }
+      else if (score >= 40) cls = 'cal-cell-yellow';
+      else                  cls = 'cal-cell-red';
+    }
+    if (info.habit_pct > 0) { habitTotal += info.habit_pct; }
+    if (info.spend > 0)     { spendTotal += info.spend; }
+
+    const scoreLabel = (score !== null && score !== undefined) ? `<div class="cal-score">${score}</div>` : '';
+
+    // Activity icons — only shown when real data exists
+    let icons = '';
+    if (info.spend > 0)         icons += '<span class="cal-icon-dot" title="Spending">💸</span>';
+    if (info.notes > 0)         icons += '<span class="cal-icon-dot" title="Notes">📝</span>';
+    if (info.workout_count > 0) icons += '<span class="cal-icon-dot" title="Exercise">🏋️</span>';
+    if (info.focus_mins > 0)    icons += '<span class="cal-icon-dot" title="Focus">⏱</span>';
+    if (info.habit_pct > 0)     icons += '<span class="cal-icon-dot" title="Habits">✅</span>';
+    const iconsHtml = icons ? `<div class="cal-icons">${icons}</div>` : '';
+
+    // Quick-add button (future dates too)
+    const quickAdd = `<a class="cal-quick-add" href="/date-details/${dateStr}">+ Add</a>`;
+
+    grid.innerHTML += `
+      <div class="cal-cell ${cls} ${isToday ? 'cal-today' : ''}" onclick="location.href='/date-details/${dateStr}'">
+        <div class="cal-day-num">${d}</div>
+        ${scoreLabel}${iconsHtml}
+        ${quickAdd}
+      </div>`;
+  }
+
+  // Summary
+  document.getElementById('summary-title').textContent = MONTHS[month-1] + ' ' + year + ' Summary';
+  document.getElementById('s-productive').textContent = productive;
+  const avgHabits = scoredCount > 0 ? Math.round(habitTotal / daysInMonth) + '%' : '—';
+  document.getElementById('s-habits').textContent = avgHabits;
+  document.getElementById('s-spend').textContent = spendTotal > 0 ? CURRENCY + Math.round(spendTotal) : '—';
+  const avgScore = scoredDays.length > 0
+    ? Math.round(scoredDays.reduce((a,b) => a+b, 0) / scoredDays.length)
+    : '—';
+  document.getElementById('s-avg').textContent = avgScore;
+}
+</script>
+{% endblock %}

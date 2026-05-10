@@ -1,0 +1,356 @@
+{% extends "base.html" %}
+{% block title %}Insights — AURIX{% endblock %}
+{% block topbar_title %}Insights{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Insights</h1>
+    <p class="page-sub">Unified analytics — productivity, study, habits, health</p>
+  </div>
+  <!-- Month / Year picker -->
+  <form method="GET" action="/insights" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+    {% set month_names = ['January','February','March','April','May','June',
+                          'July','August','September','October','November','December'] %}
+    <select name="month" class="form-input" style="min-width:130px">
+      {% for i in range(1,13) %}
+      <option value="{{ i }}" {% if i == req_month %}selected{% endif %}>{{ month_names[i-1] }}</option>
+      {% endfor %}
+    </select>
+    <select name="year" class="form-input" style="min-width:90px" id="year-select">
+      {% set current_year = req_year %}
+      {% for y in range(current_year - 10, current_year + 6) %}
+      <option value="{{ y }}" {% if y == req_year %}selected{% endif %}>{{ y }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit" class="btn-primary">View</button>
+  </form>
+</div>
+
+<!-- Tab Navigation -->
+<div class="filter-tabs mb-20">
+  <button class="filter-btn active" onclick="showTab('monthly', this)">📅 Monthly Overview</button>
+  <button class="filter-btn" onclick="showTab('trends', this)">📈 Daily Trends</button>
+  <button class="filter-btn" onclick="showTab('category', this)">📊 Category Reports</button>
+  <button class="filter-btn" onclick="showTab('performance', this)">🚀 Performance</button>
+</div>
+
+<!-- ════════════════════════════════════════════════════
+     TAB 1: MONTHLY OVERVIEW
+     ════════════════════════════════════════════════════ -->
+<div id="tab-monthly" class="tab-section">
+  <!-- Summary Cards -->
+  <div class="cards-grid cards-grid-4 mb-20">
+    <div class="stat-card" style="--stat-color:var(--indigo)">
+      <div class="stat-card-bg-icon">📊</div>
+      <div class="stat-card-label">Avg Score</div>
+      <div class="stat-card-num">{% if avg_score %}{{ avg_score }}{% else %}—{% endif %}</div>
+      <div class="stat-card-sub">{{ productive_days }} productive days</div>
+    </div>
+    <div class="stat-card" style="--stat-color:var(--coral)">
+      <div class="stat-card-bg-icon">💰</div>
+      <div class="stat-card-label">Month Spend</div>
+      <div class="stat-card-num">{{ currency }}{{ total_spend|int }}</div>
+      {% if budget > 0 %}
+      <div class="stat-card-sub">{{ currency }}{{ (budget - total_spend)|int }} remaining</div>
+      {% else %}<div class="stat-card-sub">No budget set</div>{% endif %}
+    </div>
+    <div class="stat-card" style="--stat-color:var(--emerald)">
+      <div class="stat-card-bg-icon">📚</div>
+      <div class="stat-card-label">Chapters Done</div>
+      <div class="stat-card-num">{{ chapters_done_month }}</div>
+      <div class="stat-card-sub">This month</div>
+    </div>
+    <div class="stat-card" style="--stat-color:var(--violet)">
+      <div class="stat-card-bg-icon">🌙</div>
+      <div class="stat-card-label">Avg Sleep</div>
+      <div class="stat-card-num">{{ avg_sleep }}<span class="denom">h</span></div>
+      <div class="stat-card-sub">Per night</div>
+    </div>
+  </div>
+
+  <!-- Best / Worst Day -->
+  {% if best_day or worst_day %}
+  <div class="two-col-grid mb-20">
+    {% if best_day %}
+    <div class="card" style="border-left:3px solid var(--emerald)">
+      <div class="card-header"><div class="card-icon ci-emerald">🏆</div><div class="card-title">Best Day</div></div>
+      <div style="font-size:1.6rem;font-weight:800;color:var(--emerald)">{{ best_day.score }}</div>
+      <div style="font-size:13px;color:var(--text3)">{{ best_day.date }}</div>
+    </div>
+    {% endif %}
+    {% if worst_day %}
+    <div class="card" style="border-left:3px solid var(--coral)">
+      <div class="card-header"><div class="card-icon ci-coral">📉</div><div class="card-title">Needs Improvement</div></div>
+      <div style="font-size:1.6rem;font-weight:800;color:var(--coral)">{{ worst_day.score }}</div>
+      <div style="font-size:13px;color:var(--text3)">{{ worst_day.date }}</div>
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <!-- Daily Score Heatmap -->
+  <div class="card mb-20">
+    <div class="card-header"><div class="card-icon ci-indigo">📆</div><div class="card-title">Daily Scores — {{ month_name }} {{ req_year }}</div></div>
+    <div class="heatmap-grid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px;padding:8px 0">
+      {% for s in daily_scores %}
+      <div class="heatmap-cell" style="
+        padding:10px 4px;border-radius:6px;text-align:center;
+        background:{% if s.score is none %}var(--bg3){% elif s.score >= 80 %}rgba(16,185,129,0.35){% elif s.score >= 60 %}rgba(16,185,129,0.18){% elif s.score >= 40 %}rgba(245,158,11,0.22){% elif s.score > 0 %}rgba(239,68,68,0.18){% else %}var(--bg3){% endif %};
+        font-size:11px;color:var(--text2);" title="{{ s.date }}{% if s.score is not none %}: {{ s.score }}{% endif %}">
+        <div style="font-weight:700">{{ s.day }}</div>
+        <div>{% if s.score is not none %}{{ s.score }}{% else %}—{% endif %}</div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Weekly Breakdown -->
+  {% if weeks %}
+  <div class="card mb-20">
+    <div class="card-header"><div class="card-icon ci-amber">📅</div><div class="card-title">Weekly Breakdown</div></div>
+    {% for w in weeks %}
+    <div class="insights-week-row" style="display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--border)">
+      <div style="min-width:70px;font-weight:700;color:var(--text2)">Week {{ w.week }}</div>
+      <div class="progress-bar-wrap" style="flex:1">
+        <div class="progress-bar" style="width:{{ w.avg or 0 }}%;background:{% if (w.avg or 0) >= 70 %}var(--emerald){% elif (w.avg or 0) >= 40 %}var(--amber){% else %}var(--coral){% endif %}"></div>
+      </div>
+      <div style="min-width:40px;text-align:right;font-weight:700;color:var(--text)">
+        {% if w.avg is not none %}{{ w.avg }}%{% else %}—{% endif %}
+      </div>
+      <div class="insights-week-days" style="font-size:11px;color:var(--text3);min-width:0;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ w.days }}</div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+
+<!-- ════════════════════════════════════════════════════
+     TAB 2: DAILY TRENDS
+     ════════════════════════════════════════════════════ -->
+<div id="tab-trends" class="tab-section hidden">
+  <!-- 7-Day Productivity -->
+  <div class="card mb-20">
+    <div class="card-header"><div class="card-icon ci-indigo">📈</div><div class="card-title">7-Day Productivity Score</div></div>
+    {% set has_scores = weekly_scores|selectattr('score')|list %}
+    {% if has_scores %}
+    <div class="bar-chart-wrap">
+      {% for s in weekly_scores %}
+      <div class="bar-chart-col">
+        <div class="bar-chart-bar-wrap">
+          {% if s.score is not none and s.score > 0 %}
+          <div class="bar-chart-bar {% if s.score >= 70 %}bar-good{% elif s.score >= 40 %}bar-med{% else %}bar-low{% endif %}"
+               style="height:{{ s.score }}%" data-tip="{{ s.date[5:] }}: {{ s.score }}%"></div>
+          {% else %}
+          <div class="bar-chart-bar" style="height:3%;background:var(--bg4)" data-tip="{{ s.date[5:] }}: no data"></div>
+          {% endif %}
+        </div>
+        <div class="bar-chart-label">{{ s.date[5:] }}</div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-sm">No score data yet. Log habits and activities to see scores.</div>
+    {% endif %}
+  </div>
+
+  <!-- Habit Consistency 30-day -->
+  <div class="card mb-20">
+    <div class="card-header"><div class="card-icon ci-emerald">✅</div><div class="card-title">Habit Consistency — Last 30 Days</div></div>
+    <div style="display:flex;flex-wrap:wrap;gap:4px;padding:8px 0">
+      {% for h in habit_consistency %}
+      <div style="width:20px;height:20px;border-radius:4px;
+        background:{% if h.pct >= 80 %}rgba(16,185,129,0.7){% elif h.pct >= 50 %}rgba(16,185,129,0.35){% elif h.pct > 0 %}rgba(245,158,11,0.4){% else %}var(--bg3){% endif %}"
+        title="{{ h.date }}: {{ h.pct }}%"></div>
+      {% endfor %}
+    </div>
+    <div style="display:flex;gap:16px;margin-top:8px;font-size:11px;color:var(--text3)">
+      <span><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:rgba(16,185,129,0.7);margin-right:4px"></span>80%+</span>
+      <span><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:rgba(16,185,129,0.35);margin-right:4px"></span>50%+</span>
+      <span><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:rgba(245,158,11,0.4);margin-right:4px"></span>Any</span>
+      <span><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:var(--bg3);margin-right:4px"></span>None</span>
+    </div>
+  </div>
+
+  <!-- Sleep Trend -->
+  <div class="card mb-20">
+    <div class="card-header"><div class="card-icon ci-violet">🌙</div><div class="card-title">Sleep Trend — Last 14 Days</div></div>
+    {% if sleep_trend|selectattr('hours')|list %}
+    <div class="bar-chart-wrap">
+      {% for s in sleep_trend %}
+      <div class="bar-chart-col">
+        <div class="bar-chart-bar-wrap">
+          <div class="bar-chart-bar {% if s.hours >= 7 %}bar-good{% elif s.hours >= 5 %}bar-med{% elif s.hours > 0 %}bar-low{% endif %}"
+               style="height:{{ (s.hours / 10 * 100)|int }}%"
+               data-tip="{{ s.date[5:] }}: {{ s.hours }}h"></div>
+        </div>
+        <div class="bar-chart-label">{{ s.date[8:] }}</div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-sm">No sleep data logged yet.</div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════
+     TAB 3: CATEGORY REPORTS
+     ════════════════════════════════════════════════════ -->
+<div id="tab-category" class="tab-section hidden">
+  <div class="two-col-grid">
+    <!-- Spending by Category -->
+    <div class="card mb-20">
+      <div class="card-header"><div class="card-icon ci-coral">💰</div><div class="card-title">Spending by Category</div></div>
+      {% if cat_totals %}
+      {% set max_spend = cat_totals.values()|max %}
+      {% for cat, amt in cat_totals|dictsort(by='value', reverse=true) %}
+      <div style="margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:3px">
+          <span>{{ cat }}</span>
+          <span style="font-weight:700">{{ currency }}{{ amt|int }}</span>
+        </div>
+        <div class="progress-bar-wrap">
+          <div class="progress-bar" style="width:{{ (amt / max_spend * 100)|int }}%;background:var(--coral)"></div>
+        </div>
+      </div>
+      {% endfor %}
+      <div style="padding-top:8px;border-top:1px solid var(--border);font-weight:700;display:flex;justify-content:space-between">
+        <span>Total</span><span>{{ currency }}{{ total_spend|int }}</span>
+      </div>
+      {% else %}
+      <div class="empty-sm">No expenses this month.</div>
+      {% endif %}
+    </div>
+
+    <!-- Study Progress per Exam -->
+    <div class="card mb-20">
+      <div class="card-header"><div class="card-icon ci-emerald">📚</div><div class="card-title">Exam Progress</div></div>
+      {% if exams_progress %}
+      {% for ep in exams_progress %}
+      <div style="margin-bottom:12px">
+        <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:3px">
+          <span style="font-weight:600">{{ ep.name }}</span>
+          <span>{{ ep.done }}/{{ ep.total }} · {{ ep.progress }}%</span>
+        </div>
+        <div class="progress-bar-wrap">
+          <div class="progress-bar bar-emerald" style="width:{{ ep.progress }}%"></div>
+        </div>
+      </div>
+      {% endfor %}
+      {% else %}
+      <div class="empty-sm">No exams added yet.</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Exercise Stats -->
+  <div class="card mb-20">
+    <div class="card-header"><div class="card-icon ci-amber">🏋️</div><div class="card-title">Exercise Report</div></div>
+    <div class="cards-grid cards-grid-4" style="margin-bottom:16px">
+      <div class="stat-card" style="--stat-color:var(--coral)">
+        <div class="stat-card-label">Week Sessions</div>
+        <div class="stat-card-num">{{ exercise_week_sessions }}</div>
+      </div>
+      <div class="stat-card" style="--stat-color:var(--amber)">
+        <div class="stat-card-label">Week Minutes</div>
+        <div class="stat-card-num">{{ exercise_week_mins }}<span class="denom">m</span></div>
+      </div>
+      <div class="stat-card" style="--stat-color:var(--emerald)">
+        <div class="stat-card-label">Month Sessions</div>
+        <div class="stat-card-num">{{ exercise_month_sessions }}</div>
+      </div>
+    </div>
+    {% if workout_stats %}
+    {% for ws in workout_stats[:5] %}
+    <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px">
+      <span>{{ ws.name }}</span>
+      <span style="font-weight:700;color:var(--amber)">{{ ws.count }}x logged</span>
+    </div>
+    {% endfor %}
+    {% endif %}
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════
+     TAB 4: PERFORMANCE INSIGHTS
+     ════════════════════════════════════════════════════ -->
+<div id="tab-performance" class="tab-section hidden">
+  <div class="two-col-grid">
+    <!-- Habit Rates -->
+    <div class="card mb-20">
+      <div class="card-header"><div class="card-icon ci-emerald">✅</div><div class="card-title">Habit Consistency (30-day)</div></div>
+      {% if habit_rates %}
+      {% for h in habit_rates %}
+      <div style="margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:3px">
+          <span>{{ h.name }}</span>
+          <span style="font-weight:700;color:{% if h.rate >= 70 %}var(--emerald){% elif h.rate >= 40 %}var(--amber){% else %}var(--coral){% endif %}">{{ h.rate }}%</span>
+        </div>
+        <div class="progress-bar-wrap">
+          <div class="progress-bar" style="width:{{ h.rate }}%;background:{% if h.rate >= 70 %}var(--emerald){% elif h.rate >= 40 %}var(--amber){% else %}var(--coral){% endif %}"></div>
+        </div>
+      </div>
+      {% endfor %}
+      {% else %}
+      <div class="empty-sm">No habits logged yet.</div>
+      {% endif %}
+    </div>
+
+    <!-- Study Analytics per Subject -->
+    <div class="card mb-20">
+      <div class="card-header"><div class="card-icon ci-indigo">🧠</div><div class="card-title">Subject Analytics</div></div>
+      <div style="margin-bottom:8px;font-size:12px;color:var(--text3)">
+        📈 Study streak: <strong>{{ study_streak }} day{{ 's' if study_streak != 1 }}</strong>
+      </div>
+      {% if subject_analytics %}
+      {% for sa in subject_analytics %}
+      <div style="margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--border)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+          <div>
+            <span style="font-weight:700;font-size:13px">{{ sa.name }}</span>
+            <span style="font-size:11px;color:var(--text3);margin-left:6px">{{ sa.exam }}</span>
+          </div>
+          <span style="font-size:12px;color:var(--text2)">{{ sa.done_ch }}/{{ sa.total_ch }} chapters</span>
+        </div>
+        <div class="progress-bar-wrap" style="margin-bottom:6px">
+          <div class="progress-bar bar-emerald" style="width:{{ sa.progress }}%"></div>
+        </div>
+        <div style="display:flex;gap:16px;font-size:11px;color:var(--text3)">
+          <span>⏱ {{ sa.hours }}h studied</span>
+          <span>📖 {{ sa.avg_hrs_per_ch }}h/chapter</span>
+          <span>🔁 {{ sa.revisions }} revisions</span>
+          {% if sa.total_ch > 0 and sa.progress < 40 %}
+          <span style="color:var(--coral);font-weight:700">⚠ Weak</span>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+      {% else %}
+      <div class="empty-sm">Add subjects and chapters to see analytics.</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function showTab(name, btn) {
+  document.querySelectorAll('.tab-section').forEach(s => s.classList.add('hidden'));
+  document.querySelectorAll('.filter-tabs .filter-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.remove('hidden');
+  btn.classList.add('active');
+}
+
+// Scroll the year select so the selected option is visually centred on page load
+document.addEventListener('DOMContentLoaded', function () {
+  var sel = document.getElementById('year-select');
+  if (sel) {
+    var idx = sel.selectedIndex;
+    if (idx > 2) sel.scrollTop = (idx - 2) * 22; // approximate option height
+  }
+});
+</script>
+{% endblock %}

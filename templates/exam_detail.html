@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+{% block title %}{{ exam.name }}{% endblock %}
+{% block topbar_title %}{{ exam.name }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <a href="/study" class="back-link">← Study</a>
+    <h1 class="page-title">{{ exam.name }}</h1>
+    <p class="page-sub">
+      {% if exam.date %}📅 {{ exam.date }}{% endif %}
+      {% if days_left is not none %} · <strong class="{% if days_left <= 3 %}text-danger{% elif days_left <= 7 %}text-warn{% endif %}">{{ days_left }} days left</strong>{% endif %}
+      · {{ exam.progress }}% prepared
+    </p>
+  </div>
+  <button class="btn-primary" onclick="openModal('modal-add-subject')">+ Add Subject</button>
+</div>
+
+<div class="card mb-20">
+  <div class="card-header">
+    <div class="card-title">Exam Preparation Progress</div>
+    <span class="status-badge status-{{ exam.status|lower|replace(' ','-') }}">{{ exam.status }}</span>
+  </div>
+  <div class="big-progress-wrap">
+    <div class="big-progress-bar">
+      <div class="big-progress-fill" style="width:{{ exam.progress }}%"></div>
+    </div>
+    <div class="big-progress-label">{{ exam.progress }}%</div>
+  </div>
+  {% if exam.notes %}<div class="exam-notes-box">{{ exam.notes }}</div>{% endif %}
+</div>
+
+{% if exam.subjects %}
+<div class="subjects-list">
+  {% for subj in exam.subjects %}
+  <div class="subject-block">
+    <div class="subject-block-header">
+      <div class="subject-block-info">
+        <div class="subject-block-name">
+          {{ subj.name }}
+          {% if subj.weak_subject %}<span class="weak-badge">⚠ Weak</span>{% endif %}
+        </div>
+        <div class="subject-block-meta">
+          <span class="status-badge status-{{ subj.status|lower|replace(' ','-') }}">{{ subj.status }}</span>
+          <span class="priority-badge priority-{{ subj.priority|lower }}">{{ subj.priority }}</span>
+          {% if subj.start_date %} · Started {{ subj.start_date }}{% endif %}
+        </div>
+      </div>
+      <div class="subject-block-progress">
+        <div class="subject-mini-bar">
+          <div class="subject-mini-fill" style="width:{{ subj.progress }}%"></div>
+        </div>
+        <span>{{ subj.progress }}%</span>
+      </div>
+      <div class="subject-block-actions">
+        <a href="/subject/{{ subj.id }}" class="btn-primary btn-sm">Open →</a>
+        <button class="icon-btn" onclick="openModal('modal-edit-subj-{{ subj.id }}')">✏</button>
+        <form method="POST" action="/delete-subject/{{ exam.id }}/{{ subj.id }}" style="display:inline"
+              onsubmit="return confirm('Delete subject?')">
+          <button class="icon-btn icon-btn-danger" type="submit">✕</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Chapter preview -->
+    <div class="chapter-preview-strip">
+      {% for ch in subj.chapters[:6] %}
+      <span class="ch-dot ch-dot-{{ ch.status|lower|replace(' ','-') }}" title="{{ ch.name }} ({{ ch.status }})"></span>
+      {% endfor %}
+      {% if subj.chapters|length > 6 %}
+      <span class="ch-more">+{{ subj.chapters|length - 6 }}</span>
+      {% endif %}
+    </div>
+
+    <!-- Edit Subject Modal -->
+    <div id="modal-edit-subj-{{ subj.id }}" class="modal-content hidden">
+      <div class="modal-header"><h3>Edit Subject</h3></div>
+      <form method="POST" action="/edit-subject/{{ exam.id }}/{{ subj.id }}">
+        <div class="form-group">
+          <label>Subject Name</label>
+          <input type="text" name="name" value="{{ subj.name }}" required class="form-input"/>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Priority</label>
+            <select name="priority" class="form-input">
+              {% for p in ['High','Medium','Low'] %}
+              <option {% if subj.priority==p %}selected{% endif %}>{{ p }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Status</label>
+            <select name="status" class="form-input">
+              {% for s in ['Not Started','In Progress','Revision Pending','Completed'] %}
+              <option {% if subj.status==s %}selected{% endif %}>{{ s }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label><input type="checkbox" name="weak_subject" {% if subj.weak_subject %}checked{% endif %}/> Mark as Weak Subject</label>
+        </div>
+        <div class="form-group">
+          <label>Reference Books</label>
+          <input type="text" name="reference_books" value="{{ subj.reference_books }}" class="form-input"/>
+        </div>
+        <div class="form-group">
+          <label>Notes</label>
+          <textarea name="notes" class="form-input" rows="2">{{ subj.notes }}</textarea>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn-secondary" onclick="closeActiveModal()">Cancel</button>
+          <button type="submit" class="btn-primary">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="empty-state">
+  <div class="empty-title">No subjects yet</div>
+  <div class="empty-sub">Add subjects to this exam</div>
+  <button class="btn-primary" onclick="openModal('modal-add-subject')">+ Add Subject</button>
+</div>
+{% endif %}
+
+<!-- Add Subject Modal -->
+<div id="modal-add-subject" class="modal-content hidden">
+  <div class="modal-header"><h3>Add Subject to {{ exam.name }}</h3></div>
+  <form method="POST" action="/add-subject/{{ exam.id }}">
+    <div class="form-group">
+      <label>Subject Name</label>
+      <input type="text" name="name" required class="form-input" placeholder="e.g. DBMS, Machine Learning…"/>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Priority</label>
+        <select name="priority" class="form-input">
+          <option>High</option><option selected>Medium</option><option>Low</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Status</label>
+        <select name="status" class="form-input">
+          <option>Not Started</option><option>In Progress</option><option>Revision Pending</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Start Date</label>
+      <input type="date" name="start_date" class="form-input"/>
+    </div>
+    <div class="form-group">
+      <label><input type="checkbox" name="weak_subject"/> Mark as Weak Subject</label>
+    </div>
+    <div class="form-group">
+      <label>Reference Books</label>
+      <input type="text" name="reference_books" class="form-input"/>
+    </div>
+    <div class="form-group">
+      <label>Notes</label>
+      <textarea name="notes" class="form-input" rows="2"></textarea>
+    </div>
+    <div class="form-actions">
+      <button type="button" class="btn-secondary" onclick="closeActiveModal()">Cancel</button>
+      <button type="submit" class="btn-primary">Add Subject</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

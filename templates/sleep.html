@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}Sleep Tracker{% endblock %}
+{% block topbar_title %}Sleep Tracker{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Sleep Tracker</h1>
+    <p class="page-sub">Goal: {{ goal }}h/night · Avg: {{ avg_sleep }}h</p>
+  </div>
+  <button class="btn-primary" onclick="openModal('modal-add-sleep')">+ Log Sleep</button>
+</div>
+
+<div class="cards-grid cards-grid-4">
+  <div class="card card-sm"><div class="card-sm-label">Last Night</div>
+    <div class="card-sm-num">{{ logs[0].hours if logs else '—' }}{% if logs %}h{% endif %}</div></div>
+  <div class="card card-sm"><div class="card-sm-label">7-Day Avg</div>
+    <div class="card-sm-num">{{ avg_sleep }}h</div></div>
+  <div class="card card-sm"><div class="card-sm-label">Sleep Goal</div>
+    <div class="card-sm-num">{{ goal }}h</div></div>
+  <div class="card card-sm"><div class="card-sm-label">Logs</div>
+    <div class="card-sm-num">{{ logs|length }}</div></div>
+</div>
+
+<!-- Sleep Chart -->
+<div class="card mb-20">
+  <div class="card-header"><div class="card-title">Last 14 Days</div></div>
+  <div class="bar-chart-wrap">
+    {% set recent = logs[:14]|reverse|list %}
+    {% for log in recent %}
+    <div class="bar-chart-col">
+      <div class="bar-chart-bar-wrap">
+        <div class="bar-chart-bar bar-sleep {% if log.hours >= goal %}bar-sleep-good{% endif %}"
+             style="height:{{ (log.hours / 12 * 100)|int }}%"
+             data-tip="{{ log.hours }}h"></div>
+      </div>
+      <div class="bar-chart-label">{{ log.date[5:] }}</div>
+    </div>
+    {% endfor %}
+  </div>
+  <div class="sleep-goal-line">Goal: {{ goal }}h</div>
+</div>
+
+<!-- Sleep Log -->
+<div class="card">
+  <div class="card-header"><div class="card-title">Sleep Log</div></div>
+  {% if logs %}
+  {% for log in logs %}
+  <div class="sleep-log-row">
+    <div class="sleep-log-date">{{ log.date }}</div>
+    <div class="sleep-log-times">{{ log.sleep_time }} → {{ log.wake_time }}</div>
+    <div class="sleep-log-hours {% if log.hours >= goal %}text-success{% elif log.hours < goal - 1 %}text-danger{% endif %}">
+      {{ log.hours }}h
+    </div>
+    <div class="sleep-quality-badge quality-{{ log.quality|lower }}">{{ log.quality }}</div>
+    {% if log.notes %}<div class="sleep-log-notes text-muted">{{ log.notes }}</div>{% endif %}
+    <form method="POST" action="/delete-sleep/{{ log.id }}" style="display:inline">
+      <button class="icon-btn icon-btn-danger" type="submit">✕</button>
+    </form>
+  </div>
+  {% endfor %}
+  {% else %}
+  <div class="empty-state">
+    <div class="empty-icon">◌</div>
+    <div class="empty-title">No sleep logs yet</div>
+    <div class="empty-sub">Start tracking your sleep for better insights</div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Add Sleep Modal -->
+<div id="modal-add-sleep" class="modal-content hidden">
+  <div class="modal-header"><h3>Log Sleep</h3></div>
+  <form method="POST" action="/add-sleep">
+    <div class="form-group">
+      <label>Date</label>
+      <input type="date" name="date" value="{{ today }}" class="form-input"/>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Sleep Time</label>
+        <input type="time" name="sleep_time" value="23:00" class="form-input"/>
+      </div>
+      <div class="form-group">
+        <label>Wake Time</label>
+        <input type="time" name="wake_time" value="07:00" class="form-input"/>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Sleep Quality</label>
+      <select name="quality" class="form-input">
+        <option>Excellent</option><option selected>Good</option><option>Fair</option><option>Poor</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Notes</label>
+      <input type="text" name="notes" class="form-input" placeholder="Anything affecting sleep?"/>
+    </div>
+    <div class="form-actions">
+      <button type="button" class="btn-secondary" onclick="closeActiveModal()">Cancel</button>
+      <button type="submit" class="btn-primary">Log Sleep</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

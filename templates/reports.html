@@ -1,0 +1,244 @@
+{% extends "base.html" %}
+{% block title %}Reports & Analytics{% endblock %}
+{% block topbar_title %}Reports & Analytics{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Reports & Analytics</h1>
+    <p class="page-sub">Real insights — only shown when actual data exists</p>
+  </div>
+</div>
+
+{% set has_habits     = habit_rates|length > 0 %}
+{% set has_spending   = cat_totals|length > 0 %}
+{% set has_study      = exams_progress|length > 0 %}
+{% set has_sleep      = sleep_trend|selectattr('hours')|list|length > 0 %}
+{% set real_scores    = weekly_scores|selectattr('score')|list %}
+{% set has_any_data   = has_habits or has_spending or has_study or has_sleep or real_scores %}
+
+{% if not has_any_data %}
+<div class="no-data-box" style="padding:70px 30px; margin-top:20px">
+  <div class="no-data-icon">📊</div>
+  <div class="no-data-title">No report data yet</div>
+  <div class="no-data-sub">Start adding habits, expenses, study data and tasks to see your analytics here.</div>
+</div>
+{% else %}
+
+<!-- 7-Day Productivity -->
+{% if real_scores %}
+<div class="card mb-20">
+  <div class="card-header">
+    <div class="card-icon ci-indigo">📈</div>
+    <div class="card-title">7-Day Productivity Score</div>
+  </div>
+  <div class="bar-chart-wrap bar-chart-tall">
+    {% for s in weekly_scores %}
+    <div class="bar-chart-col">
+      <div class="bar-chart-bar-wrap">
+        {% if s.score is not none and s.score > 0 %}
+        <div class="bar-chart-bar {% if s.score >= 70 %}bar-good{% elif s.score >= 40 %}bar-med{% else %}bar-low{% endif %}"
+             style="height:{{ s.score }}%" data-tip="{{ s.date[5:] }}: {{ s.score }}%"></div>
+        {% else %}
+        <div class="bar-chart-bar" style="height:3%;background:var(--bg4)" data-tip="{{ s.date[5:] }}: no data"></div>
+        {% endif %}
+      </div>
+      <div class="bar-chart-label">{{ s.date[5:] }}</div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<div class="two-col-grid">
+  <!-- Habit Consistency -->
+  {% if has_habits %}
+  <div class="card">
+    <div class="card-header">
+      <div class="card-icon ci-emerald">✅</div>
+      <div class="card-title">Habit Consistency (30d)</div>
+    </div>
+    {% for hr in habit_rates %}
+    <div class="cat-row">
+      <div class="cat-name">{{ hr.name[:16] }}{% if hr.name|length > 16 %}…{% endif %}</div>
+      <div class="cat-bar-wrap">
+        <div class="cat-bar {% if hr.rate >= 70 %}cat-bar-good{% elif hr.rate >= 40 %}cat-bar-med{% else %}cat-bar-low{% endif %}"
+             style="width:{{ hr.rate }}%"></div>
+      </div>
+      <div class="cat-amt">{{ hr.rate }}%</div>
+    </div>
+    {% endfor %}
+    {% if habit_rates %}
+    <div class="card-divider"></div>
+    <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text3);font-weight:700">
+      <span>🏆 Best: {{ habit_rates[0].name }}</span>
+      <span>⚠ Needs work: {{ habit_rates[-1].name }}</span>
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <!-- Spending Breakdown -->
+  {% if has_spending %}
+  <div class="card">
+    <div class="card-header">
+      <div class="card-icon ci-coral">💰</div>
+      <div class="card-title">This Month's Spending</div>
+      <div class="card-badge">{{ currency }}{{ month_total|int }} / {{ currency }}{{ budget|int if budget > 0 else '—' }}</div>
+    </div>
+    {% set max_amt = cat_totals.values()|max %}
+    {% for cat, amt in cat_totals|dictsort(by='value', reverse=true) %}
+    <div class="cat-row">
+      <div class="cat-name">{{ cat }}</div>
+      <div class="cat-bar-wrap"><div class="cat-bar bar-spend" style="width:{{ (amt/max_amt*100)|int }}%"></div></div>
+      <div class="cat-amt">{{ currency }}{{ amt|int }}</div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+
+<!-- Study Progress -->
+{% if has_study %}
+<div class="card mb-20">
+  <div class="card-header">
+    <div class="card-icon ci-violet">📚</div>
+    <div class="card-title">Exam Preparation Progress</div>
+  </div>
+  {% for e in exams_progress %}
+  <div class="cat-row">
+    <div class="cat-name">{{ e.name[:18] }}{% if e.name|length > 18 %}…{% endif %}</div>
+    <div class="cat-bar-wrap"><div class="cat-bar bar-study" style="width:{{ e.progress }}%"></div></div>
+    <div class="cat-amt">{{ e.done }}/{{ e.total }} · {{ e.progress }}%</div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- Sleep Trend -->
+{% if has_sleep %}
+<div class="card mb-20">
+  <div class="card-header">
+    <div class="card-icon ci-sky">🌙</div>
+    <div class="card-title">Sleep Trend (14 days)</div>
+  </div>
+  <div class="bar-chart-wrap">
+    {% for s in sleep_trend %}
+    <div class="bar-chart-col">
+      <div class="bar-chart-bar-wrap">
+        {% if s.hours > 0 %}
+        <div class="bar-chart-bar {% if s.hours >= 7 %}bar-sleep-good{% else %}bar-sleep{% endif %}"
+             style="height:{{ (s.hours / 12 * 100)|int }}%" data-tip="{{ s.date[5:] }}: {{ s.hours }}h"></div>
+        {% else %}
+        <div class="bar-chart-bar" style="height:3%;background:var(--bg4)"></div>
+        {% endif %}
+      </div>
+      <div class="bar-chart-label">{{ s.date[5:] }}</div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<!-- Focus Summary -->
+{% if focus_this_week > 0 or habit_rates %}
+<div class="cards-grid cards-grid-4">
+  {% if focus_this_week > 0 %}
+  <div class="stat-card" style="--stat-color:var(--coral)">
+    <div class="stat-card-bg-icon">⏱</div>
+    <div class="stat-card-label">Focus This Week</div>
+    <div class="stat-card-num">{{ focus_this_week }}<span class="denom">m</span></div>
+  </div>
+  {% endif %}
+  {% if habit_rates %}
+  <div class="stat-card" style="--stat-color:var(--success)">
+    <div class="stat-card-bg-icon">🏆</div>
+    <div class="stat-card-label">Best Habit</div>
+    <div class="stat-card-num" style="font-size:14px">{{ habit_rates[0].name }}</div>
+    <div class="stat-card-sub">{{ habit_rates[0].rate }}% rate</div>
+  </div>
+  <div class="stat-card" style="--stat-color:var(--warn)">
+    <div class="stat-card-bg-icon">⚠</div>
+    <div class="stat-card-label">Needs Attention</div>
+    <div class="stat-card-num" style="font-size:14px">{{ habit_rates[-1].name }}</div>
+    <div class="stat-card-sub">{{ habit_rates[-1].rate }}% rate</div>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+<!-- Exercise Report -->
+{% if exercise_week_sessions > 0 or exercise_month_sessions > 0 %}
+<div class="two-col-grid">
+  <div class="card">
+    <div class="card-header">
+      <div class="card-icon ci-coral">🏋️</div>
+      <div class="card-title">Exercise Report</div>
+    </div>
+    <div class="cards-grid cards-grid-4" style="gap:10px;margin-bottom:14px">
+      <div style="background:var(--bg3);border-radius:10px;padding:12px;text-align:center;border:1px solid var(--border)">
+        <div style="font-size:20px;font-weight:800">{{ exercise_week_sessions }}</div>
+        <div style="font-size:11px;color:var(--text3);font-weight:700">Sessions/Week</div>
+      </div>
+      <div style="background:var(--bg3);border-radius:10px;padding:12px;text-align:center;border:1px solid var(--border)">
+        <div style="font-size:20px;font-weight:800">{{ exercise_week_mins }}m</div>
+        <div style="font-size:11px;color:var(--text3);font-weight:700">Mins/Week</div>
+      </div>
+      <div style="background:var(--bg3);border-radius:10px;padding:12px;text-align:center;border:1px solid var(--border)">
+        <div style="font-size:20px;font-weight:800">{{ exercise_month_sessions }}</div>
+        <div style="font-size:11px;color:var(--text3);font-weight:700">This Month</div>
+      </div>
+    </div>
+    {% if workout_stats %}
+    <div class="card-subtitle">Top Workouts (All Time)</div>
+    {% for w in workout_stats[:5] %}
+    {% if w.count > 0 %}
+    <div class="cat-row">
+      <div class="cat-name">{{ w.name }}</div>
+      <div class="cat-bar-wrap">
+        <div class="cat-bar" style="width:{{ (w.count / workout_stats[0].count * 100)|int if workout_stats[0].count else 0 }}%;background:var(--coral)"></div>
+      </div>
+      <div class="cat-amt">{{ w.count }}x</div>
+    </div>
+    {% endif %}
+    {% endfor %}
+    {% endif %}
+  </div>
+
+  <!-- Focus Report -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-icon ci-violet">⏱</div>
+      <div class="card-title">Focus Timer Report</div>
+    </div>
+    <div class="cards-grid cards-grid-4" style="gap:10px;margin-bottom:14px">
+      <div style="background:var(--bg3);border-radius:10px;padding:12px;text-align:center;border:1px solid var(--border)">
+        <div style="font-size:20px;font-weight:800">{{ focus_week_mins }}m</div>
+        <div style="font-size:11px;color:var(--text3);font-weight:700">This Week</div>
+      </div>
+      <div style="background:var(--bg3);border-radius:10px;padding:12px;text-align:center;border:1px solid var(--border)">
+        <div style="font-size:20px;font-weight:800">{{ focus_month_mins }}m</div>
+        <div style="font-size:11px;color:var(--text3);font-weight:700">This Month</div>
+      </div>
+    </div>
+    {% if focus_by_cat %}
+    <div class="card-subtitle">Focus by Category (This Month)</div>
+    {% set max_focus = focus_by_cat.values()|max %}
+    {% for cat, mins in focus_by_cat|dictsort(by='value', reverse=true) %}
+    <div class="cat-row">
+      <div class="cat-name">{{ cat }}</div>
+      <div class="cat-bar-wrap">
+        <div class="cat-bar bar-study" style="width:{{ (mins/max_focus*100)|int }}%"></div>
+      </div>
+      <div class="cat-amt">{{ mins }}m</div>
+    </div>
+    {% endfor %}
+    {% else %}
+    <div class="empty-sm">No focus sessions this month</div>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+{% endif %}{# end has_any_data #}
+{% endblock %}

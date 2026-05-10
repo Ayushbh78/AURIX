@@ -1,0 +1,338 @@
+{% extends "base.html" %}
+{% block title %}Study & Exams{% endblock %}
+{% block topbar_title %}Study & Exams{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Study & Exams</h1>
+    <p class="page-sub">
+      {% if exams or subjects %}
+        {{ exams|length }} exam{{ 's' if exams|length != 1 }} · {{ subjects|length }} independent subject{{ 's' if subjects|length != 1 }}
+      {% else %}
+        Track your exam prep and personal learning
+      {% endif %}
+    </p>
+  </div>
+</div>
+
+<!-- Quick Stats -->
+{% if total_chapters > 0 %}
+<div class="cards-grid cards-grid-4 mb-20">
+  <div class="stat-card" style="--stat-color:var(--accent)">
+    <div class="stat-card-label">Total Chapters</div>
+    <div class="stat-card-num">{{ total_chapters }}</div>
+  </div>
+  <div class="stat-card" style="--stat-color:var(--success)">
+    <div class="stat-card-label">Completed</div>
+    <div class="stat-card-num">{{ completed_chapters }}</div>
+  </div>
+  <div class="stat-card" style="--stat-color:var(--warn)">
+    <div class="stat-card-label">Revision Pending</div>
+    <div class="stat-card-num">{{ revision_pending }}</div>
+  </div>
+  <div class="stat-card" style="--stat-color:var(--violet)">
+    <div class="stat-card-label">Upcoming Exams</div>
+    <div class="stat-card-num">{{ upcoming_exams|length }}</div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Upcoming Exam Alerts -->
+{% if upcoming_exams %}
+<div class="mb-20">
+  {% for exam in upcoming_exams[:3] %}
+  {% if exam.days_left is not none %}
+  <div class="exam-alert {% if exam.days_left <= 3 %}alert-red{% elif exam.days_left <= 7 %}alert-yellow{% else %}alert-blue{% endif %} mb-10">
+    <span class="alert-icon">{% if exam.days_left <= 3 %}🚨{% elif exam.days_left <= 7 %}⚠️{% else %}📅{% endif %}</span>
+    <strong>{{ exam.name }}</strong> — {{ exam.days_left }} day{{ 's' if exam.days_left != 1 }} left · {{ exam.progress }}% prepared
+    <a href="/exam/{{ exam.id }}" class="btn-sm btn-secondary" style="margin-left:auto">Open →</a>
+  </div>
+  {% endif %}
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- ══ TABS ══ -->
+<div class="tab-bar mb-20">
+  <button class="tab-btn active" id="tab-exams-btn" onclick="switchTab('exams', this)">📋 Exam-Based ({{ exams|length }})</button>
+  <button class="tab-btn" id="tab-subjects-btn" onclick="switchTab('subjects', this)">📚 Independent Subjects ({{ subjects|length }})</button>
+</div>
+
+<!-- ══ EXAMS TAB ══ -->
+<div id="tab-exams">
+  <div class="section-action-row mb-20">
+    <div class="section-label">Your Exams</div>
+    <button class="btn-primary" onclick="openModal('modal-add-exam')">+ Add Exam</button>
+  </div>
+
+  {% if exams %}
+  <div class="study-grid">
+    {% for exam in exams %}
+    <div class="study-card">
+      <div class="study-card-top">
+        <div class="study-card-meta">
+          <span class="study-type-badge">{{ exam.type }}</span>
+          <span class="priority-badge priority-{{ exam.priority|lower }}">{{ exam.priority }}</span>
+          <span class="status-badge status-{{ exam.status|lower|replace(' ','-') }}">{{ exam.status }}</span>
+        </div>
+        <div class="study-card-actions">
+          <button class="icon-btn" onclick="openModal('modal-edit-exam-{{ exam.id }}')" title="Edit">✏</button>
+          <form method="POST" action="/delete-exam/{{ exam.id }}" style="display:inline"
+                onsubmit="return confirm('Delete this exam and all subjects?')">
+            <button class="icon-btn icon-btn-danger" type="submit">✕</button>
+          </form>
+        </div>
+      </div>
+
+      <div class="study-card-name">{{ exam.name }}</div>
+
+      {% if exam.date %}
+      <div class="study-card-date">
+        📅 {{ exam.date }}
+        {% if exam.days_left is not none %}
+        · <strong class="{% if exam.days_left <= 3 %}text-danger{% elif exam.days_left <= 7 %}text-warn{% endif %}">
+            {% if exam.days_left < 0 %}{{ exam.days_left|abs }}d ago{% elif exam.days_left == 0 %}Today!{% else %}{{ exam.days_left }}d left{% endif %}
+          </strong>
+        {% endif %}
+      </div>
+      {% endif %}
+
+      <!-- Progress -->
+      <div class="study-progress-row">
+        <div class="study-progress-bar">
+          <div class="study-progress-fill" style="width:{{ exam.progress }}%"></div>
+        </div>
+        <span class="study-progress-pct">{{ exam.progress }}%</span>
+      </div>
+      {% if exam.subjects|length > 0 %}
+      <div class="study-auto-progress-label">{{ exam.progress }}% prepared · {{ exam.subjects|length }} subject{{ 's' if exam.subjects|length != 1 }}</div>
+      {% endif %}
+
+      <div class="study-card-footer">
+        <span class="text-muted">{{ exam.subjects|length }} subject{{ 's' if exam.subjects|length != 1 }}</span>
+        <a href="/exam/{{ exam.id }}" class="btn-primary btn-sm">Open Exam →</a>
+      </div>
+    </div>
+
+    <!-- Edit Modal -->
+    <div id="modal-edit-exam-{{ exam.id }}" class="modal-content hidden">
+      <div class="modal-header"><h3>Edit Exam</h3></div>
+      <form method="POST" action="/edit-exam/{{ exam.id }}">
+        <div class="form-group"><label>Exam Name</label>
+          <input type="text" name="name" value="{{ exam.name }}" required class="form-input"/></div>
+        <div class="form-row">
+          <div class="form-group"><label>Exam Date</label>
+            <input type="date" name="date" value="{{ exam.date }}" class="form-input"/></div>
+          <div class="form-group"><label>Type</label>
+            <select name="type" class="form-input">
+              {% for t in ['Semester','Internal','Placement','University','Certification','Board','Other'] %}
+              <option {% if exam.type==t %}selected{% endif %}>{{ t }}</option>{% endfor %}
+            </select></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Priority</label>
+            <select name="priority" class="form-input">
+              {% for p in ['High','Medium','Low'] %}
+              <option {% if exam.priority==p %}selected{% endif %}>{{ p }}</option>{% endfor %}
+            </select></div>
+          <div class="form-group"><label>Status</label>
+            <select name="status" class="form-input">
+              {% for s in ['Not Started','Preparing','Revision Phase','Completed'] %}
+              <option {% if exam.status==s %}selected{% endif %}>{{ s }}</option>{% endfor %}
+            </select></div>
+        </div>
+        <div class="form-group"><label>Notes</label>
+          <textarea name="notes" class="form-input" rows="2">{{ exam.notes }}</textarea></div>
+        <div class="form-actions">
+          <button type="button" class="btn-secondary" onclick="closeActiveModal()">Cancel</button>
+          <button type="submit" class="btn-primary">Save</button>
+        </div>
+      </form>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <div class="empty-icon">📋</div>
+    <div class="empty-title">No exams added</div>
+    <div class="empty-sub">Add an exam to track your preparation with Exam → Subjects → Chapters structure</div>
+    <button class="btn-primary" onclick="openModal('modal-add-exam')">+ Add Your First Exam</button>
+  </div>
+  {% endif %}
+</div>
+
+<!-- ══ INDEPENDENT SUBJECTS TAB ══ -->
+<div id="tab-subjects" style="display:none">
+  <div class="section-action-row mb-20">
+    <div class="section-label">Independent Learning</div>
+    <button class="btn-primary" onclick="openModal('modal-add-indep-subject')">+ Add Subject</button>
+  </div>
+
+  {% if subjects %}
+  <div class="study-grid">
+    {% for subj in subjects %}
+    <div class="study-card {% if subj.auto_weak %}auto-weak{% endif %}">
+      <div class="study-card-top">
+        <div class="study-card-meta">
+          <span class="study-type-badge">{{ subj.category or 'Personal' }}</span>
+          <span class="priority-badge priority-{{ subj.priority|lower }}">{{ subj.priority }}</span>
+          {% if subj.weak_subject %}<span class="weak-badge">⚠ Weak</span>{% endif %}
+        </div>
+        <div class="study-card-actions">
+          <button class="icon-btn" onclick="openModal('modal-edit-subj-{{ subj.id }}')" title="Edit">✏</button>
+          <form method="POST" action="/delete-independent-subject/{{ subj.id }}" style="display:inline"
+                onsubmit="return confirm('Delete this subject?')">
+            <button class="icon-btn icon-btn-danger" type="submit">✕</button>
+          </form>
+        </div>
+      </div>
+
+      <div class="study-card-name">{{ subj.name }}</div>
+      <div class="study-card-date">{{ subj.status }} · {{ subj.completion_done|default(0) }}/{{ subj.completion_total|default(0) }} chapters</div>
+
+      <div class="study-progress-row">
+        <div class="study-progress-bar">
+          <div class="study-progress-fill" style="width:{{ subj.progress }}%"></div>
+        </div>
+        <span class="study-progress-pct">{{ subj.progress }}%</span>
+      </div>
+      {% if subj.completion_total > 0 %}
+      <div class="study-auto-progress-label">You are {{ subj.progress }}% done with {{ subj.name }}</div>
+      {% endif %}
+      {% if subj.auto_weak %}
+      <span class="study-weak-hint">⚠ Low completion — needs attention</span>
+      {% endif %}
+
+      <div class="study-card-footer">
+        <span class="text-muted">{{ subj.chapters|length }} chapter{{ 's' if subj.chapters|length != 1 }}</span>
+        <a href="/subject/{{ subj.id }}" class="btn-primary btn-sm">Open →</a>
+      </div>
+    </div>
+
+    <!-- Edit Modal -->
+    <div id="modal-edit-subj-{{ subj.id }}" class="modal-content hidden">
+      <div class="modal-header"><h3>Edit Subject</h3></div>
+      <form method="POST" action="/edit-independent-subject/{{ subj.id }}">
+        <div class="form-group"><label>Subject Name</label>
+          <input type="text" name="name" value="{{ subj.name }}" required class="form-input"/></div>
+        <div class="form-row">
+          <div class="form-group"><label>Category</label>
+            <input type="text" name="category" value="{{ subj.category }}" class="form-input"/></div>
+          <div class="form-group"><label>Priority</label>
+            <select name="priority" class="form-input">
+              {% for p in ['High','Medium','Low'] %}
+              <option {% if subj.priority==p %}selected{% endif %}>{{ p }}</option>{% endfor %}
+            </select></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Status</label>
+            <select name="status" class="form-input">
+              {% for s in ['Not Started','In Progress','Revision Pending','Completed'] %}
+              <option {% if subj.status==s %}selected{% endif %}>{{ s }}</option>{% endfor %}
+            </select></div>
+          <div class="form-group"><label>Start Date</label>
+            <input type="date" name="start_date" value="{{ subj.start_date }}" class="form-input"/></div>
+        </div>
+        <div class="form-group">
+          <label><input type="checkbox" name="weak_subject" {% if subj.weak_subject %}checked{% endif %}/> Mark as Weak Subject</label>
+        </div>
+        <div class="form-group"><label>Notes</label>
+          <textarea name="notes" class="form-input" rows="2">{{ subj.notes }}</textarea></div>
+        <div class="form-actions">
+          <button type="button" class="btn-secondary" onclick="closeActiveModal()">Cancel</button>
+          <button type="submit" class="btn-primary">Save</button>
+        </div>
+      </form>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <div class="empty-icon">📚</div>
+    <div class="empty-title">No independent subjects</div>
+    <div class="empty-sub">Add subjects for personal learning, certifications, or skill development</div>
+    <button class="btn-primary" onclick="openModal('modal-add-indep-subject')">+ Add First Subject</button>
+  </div>
+  {% endif %}
+</div>
+
+<!-- ══ ADD EXAM MODAL ══ -->
+<div id="modal-add-exam" class="modal-content hidden">
+  <div class="modal-header"><h3>Add New Exam</h3><p>Exam → Subjects → Chapters structure</p></div>
+  <form method="POST" action="/add-exam">
+    <div class="form-group"><label>Exam Name</label>
+      <input type="text" name="name" required class="form-input" placeholder="e.g. Semester 5, GATE 2025…"/></div>
+    <div class="form-row">
+      <div class="form-group"><label>Exam Date</label>
+        <input type="date" name="date" class="form-input"/></div>
+      <div class="form-group"><label>Type</label>
+        <select name="type" class="form-input">
+          <option>Semester</option><option>Internal</option><option>Placement</option>
+          <option>University</option><option>Certification</option><option>Board</option><option>Other</option>
+        </select></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Priority</label>
+        <select name="priority" class="form-input">
+          <option>High</option><option selected>Medium</option><option>Low</option>
+        </select></div>
+      <div class="form-group"><label>Status</label>
+        <select name="status" class="form-input">
+          <option>Not Started</option><option>Preparing</option><option>Revision Phase</option>
+        </select></div>
+    </div>
+    <div class="form-group"><label>Notes / Syllabus overview</label>
+      <textarea name="notes" class="form-input" rows="2" placeholder="Any notes about this exam…"></textarea></div>
+    <div class="form-actions">
+      <button type="button" class="btn-secondary" onclick="closeActiveModal()">Cancel</button>
+      <button type="submit" class="btn-primary">Add Exam</button>
+    </div>
+  </form>
+</div>
+
+<!-- ══ ADD INDEPENDENT SUBJECT MODAL ══ -->
+<div id="modal-add-indep-subject" class="modal-content hidden">
+  <div class="modal-header"><h3>Add Independent Subject</h3><p>For personal learning outside of exams</p></div>
+  <form method="POST" action="/add-independent-subject">
+    <div class="form-group"><label>Subject Name</label>
+      <input type="text" name="name" required class="form-input" placeholder="e.g. DSA, Web Dev, Python…"/></div>
+    <div class="form-row">
+      <div class="form-group"><label>Category</label>
+        <input type="text" name="category" class="form-input" placeholder="Programming, Language, Skill…"/></div>
+      <div class="form-group"><label>Priority</label>
+        <select name="priority" class="form-input">
+          <option>High</option><option selected>Medium</option><option>Low</option>
+        </select></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Status</label>
+        <select name="status" class="form-input">
+          <option>Not Started</option><option>In Progress</option><option>Revision Pending</option>
+        </select></div>
+      <div class="form-group"><label>Start Date</label>
+        <input type="date" name="start_date" class="form-input"/></div>
+    </div>
+    <div class="form-group">
+      <label><input type="checkbox" name="weak_subject"/> Mark as Weak Subject</label>
+    </div>
+    <div class="form-group"><label>Notes</label>
+      <textarea name="notes" class="form-input" rows="2" placeholder="Resources, goals…"></textarea></div>
+    <div class="form-actions">
+      <button type="button" class="btn-secondary" onclick="closeActiveModal()">Cancel</button>
+      <button type="submit" class="btn-primary">Add Subject</button>
+    </div>
+  </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function switchTab(tab, btn) {
+  document.getElementById('tab-exams').style.display = tab === 'exams' ? '' : 'none';
+  document.getElementById('tab-subjects').style.display = tab === 'subjects' ? '' : 'none';
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+</script>
+{% endblock %}

@@ -1,0 +1,44 @@
+<div id="modal-edit-task-{{ t.id }}" class="modal-content hidden">
+  <div class="modal-header"><h3>Edit Task</h3></div>
+  <form method="POST" action="/edit-task/{{ t.id }}">
+    <div class="form-group">
+      <label>Task Title</label>
+      <input type="text" name="title" value="{{ t.title }}" required class="form-input"/>
+    </div>
+    <div class="form-group">
+      <label>Description</label>
+      <textarea name="description" class="form-input" rows="2">{{ t.description }}</textarea>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Date</label>
+        <input type="date" name="date" value="{{ t.date }}" class="form-input"/>
+      </div>
+      <div class="form-group">
+        <label>Time</label>
+        <input type="time" name="due_time" value="{{ t.due_time }}" class="form-input"/>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Priority</label>
+        <select name="priority" class="form-input">
+          {% for p in ['High','Medium','Low'] %}
+          <option {% if t.priority==p %}selected{% endif %}>{{ p }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Category</label>
+        <input type="text" name="category" value="{{ t.category }}" class="form-input"/>
+      </div>
+    </div>
+    <div class="form-group">
+      <label><input type="checkbox" name="important" {% if t.important %}checked{% endif %}/> ⭐ Important</label>
+    </div>
+    <div class="form-actions">
+      <button type="button" class="btn-secondary" onclick="closeActiveModal()">Cancel</button>
+      <button type="submit" class="btn-primary">Save</button>
+    </div>
+  </form>
+</div>

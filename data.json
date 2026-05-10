@@ -1,0 +1,101 @@
+{
+  "habits": [],
+  "habit_logs": {},
+  "expenses": [
+    {
+      "id": 1,
+      "amount": 200.0,
+      "category": "Food",
+      "description": "I spent 200 on food",
+      "date": "2026-04-30",
+      "payment_method": "Cash",
+      "tag": "AI"
+    }
+  ],
+  "budget": {
+    "monthly": 0,
+    "currency": "\u20b9"
+  },
+  "exams": [],
+  "subjects": [],
+  "notes": {},
+  "goals": [],
+  "tasks": [],
+  "sleep_logs": [],
+  "focus_sessions": [],
+  "mood_logs": {},
+  "water_logs": {},
+  "journal_entries": {},
+  "milestones": [],
+  "tags": [],
+  "settings": {
+    "name": "Ayush",
+    "daily_water_goal": 8,
+    "daily_sleep_goal": 8,
+    "productivity_weights": {
+      "habits": 40,
+      "tasks": 30,
+      "study": 30
+    }
+  },
+  "habit_entries": {},
+  "workouts": [],
+  "workout_logs": {},
+  "focus_timer_sessions": [],
+  "ai_sessions": [
+    {
+      "user": "hi",
+      "bot": "I can help you log workouts, expenses, create habits, exams, goals, tasks, and notes. Try: \"I did 30 pushups\", \"I spent 200 on food\", \"Create GATE exam\", \"Add habit Morning Run\" For Hindi: \"GATE exam banao\", \"aaj 30 pushups kiye\", \"200 kharch kiye food pe\"",
+      "ts": "2026-04-29T16:13:35.730021",
+      "action": null
+    },
+    {
+      "user": "I did 30 pushups",
+      "bot": "\ud83d\udcaa Got it! Logged your Workout \u2014 30 reps.",
+      "ts": "2026-04-30T03:16:33.223813",
+      "action": {
+        "type": "exercise_logged",
+        "workout": "Workout"
+      }
+    },
+    {
+      "user": "I spent 200 on food",
+      "bot": "\u2705 Recorded \u20b9200 under Food.",
+      "ts": "2026-04-30T03:16:33.225514",
+      "action": {
+        "type": "expense_added",
+        "amount": 200.0,
+        "category": "Food"
+      }
+    },
+    {
+      "user": "status",
+      "bot": "\ud83d\udcca Today \u2014 2026-04-30:\n\u2022 Spent: \u20b9200",
+      "ts": "2026-04-30T03:16:33.226791",
+      "action": {
+        "type": "status_shown"
+      }
+    }
+  ],
+  "remember": [],
+  "active_sessions": {
+    "study": null
+  },
+  "thoughts": [
+    {
+      "id": 1,
+      "title": "Test Thought",
+      "content": "A test thought content",
+      "type": "Idea",
+      "mood": "\ud83d\udca1",
+      "tags": [
+        "test",
+        "aurix"
+      ],
+      "date": "2026-05-03",
+      "created_at": "2026-05-03T12:08:58.168313",
+      "pinned": false,
+      "favorite": false
+    }
+  ]
+}

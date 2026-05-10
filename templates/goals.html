@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}Life Goals{% endblock %}
+{% block topbar_title %}Life Goals{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Life Goals</h1>
+    <p class="page-sub">{{ goals|length }} goals · {{ completed|length }} achieved</p>
+  </div>
+  <button class="btn-primary" onclick="openModal('modal-add-goal')">+ Add Goal</button>
+</div>
+
+<!-- Summary -->
+<div class="cards-grid cards-grid-4 mb-20">
+  <div class="stat-card" style="--stat-color:var(--violet)">
+    <div class="stat-card-bg-icon">🎯</div>
+    <div class="stat-card-label">Total Goals</div>
+    <div class="stat-card-num">{{ goals|length }}</div>
+  </div>
+  <div class="stat-card" style="--stat-color:var(--emerald)">
+    <div class="stat-card-bg-icon">✅</div>
+    <div class="stat-card-label">Achieved</div>
+    <div class="stat-card-num">{{ completed|length }}</div>
+  </div>
+  <div class="stat-card" style="--stat-color:var(--accent)">
+    <div class="stat-card-bg-icon">🔥</div>
+    <div class="stat-card-label">In Progress</div>
+    <div class="stat-card-num">{{ in_progress|length }}</div>
+  </div>
+  <div class="stat-card" style="--stat-color:var(--amber)">
+    <div class="stat-card-bg-icon">⏳</div>
+    <div class="stat-card-label">Pending</div>
+    <div class="stat-card-num">{{ pending|length }}</div>
+  </div>
+</div>
+
+{% if in_progress %}
+<div class="goals-section">
+  <div class="goals-section-title">🔥 In Progress</div>
+  <div class="goals-grid">
+    {% for g in in_progress %}{% include 'goal_card.html' %}{% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{% if pending %}
+<div class="goals-section">
+  <div class="goals-section-title">⏳ Pending</div>
+  <div class="goals-grid">
+    {% for g in pending %}{% include 'goal_card.html' %}{% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{% if completed %}
+<div class="goals-section">
+  <div class="goals-section-title">✅ Achieved</div>
+  <div class="goals-grid">
+    {% for g in completed %}{% include 'goal_card.html' %}{% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{# all_exams auto_progress milestone_pct available via route for goal_card.html #}
+{% if not goals %}
+<div class="empty-state">
+  <div class="empty-icon">🎯</div>
+  <div class="empty-title">No goals yet</div>
+  <div class="empty-sub">Set your first life goal and start working towards it</div>
+  <button class="btn-primary" onclick="openModal('modal-add-goal')">+ Add Your First Goal</button>
+</div>
+{% endif %}
+
+<!-- Add Goal Modal -->
+<div id="modal-add-goal" class="modal-content hidden">
+  <div class="modal-header"><h3>Add Life Goal</h3><p>Progress auto-calculated from linked exams</p></div>
+  <form method="POST" action="/add-goal">
+    <div class="form-group"><label>Goal Title *</label>
+      <input type="text" name="title" required class="form-input" placeholder="What do you want to achieve?"/></div>
+    <div class="form-group"><label>Description</label>
+      <textarea name="description" class="form-input" rows="2" placeholder="Details…"></textarea></div>
+    <div class="form-row">
+      <div class="form-group"><label>Target Year</label>
+        <input type="text" name="target_year" class="form-input" placeholder="2025, 2026…"/></div>
+      <div class="form-group"><label>Target Date</label>
+        <input type="date" name="target_date" class="form-input"/></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Category</label>
+        <input type="text" name="category" class="form-input" placeholder="Career, Finance, Health…"/></div>
+      <div class="form-group"><label>Status</label>
+        <select name="status" class="form-input">
+          <option>Pending</option><option>In Progress</option><option>Completed</option>
+        </select></div>
+    </div>
+    <div class="form-group"><label>Motivation</label>
+      <textarea name="motivation" class="form-input" rows="2" placeholder="Why does this matter?"></textarea></div>
+    <div class="form-actions">
+      <button type="button" class="btn-secondary" onclick="closeActiveModal()">Cancel</button>
+      <button type="submit" class="btn-primary">Add Goal</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

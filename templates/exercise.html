@@ -1,0 +1,245 @@
+{% extends "base.html" %}
+{% block title %}Exercise{% endblock %}
+{% block topbar_title %}Exercise{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Exercise Tracker</h1>
+    <p class="page-sub">Track your workouts with actual performance data</p>
+  </div>
+  <button class="btn-primary" onclick="openModal('modal-add-workout')">+ Add Workout</button>
+</div>
+
+<!-- Stats Row -->
+{% if workouts %}
+<div class="cards-grid cards-grid-4 mb-20">
+  <div class="stat-card" style="--stat-color:var(--coral)">
+    <div class="stat-card-bg-icon">🏋️</div>
+    <div class="stat-card-label">Done Today</div>
+    <div class="stat-card-num">{{ done_ids|length }}<span class="denom">/{{ workouts|length }}</span></div>
+  </div>
+  <div class="stat-card" style="--stat-color:var(--emerald)">
+    <div class="stat-card-bg-icon">⏱</div>
+    <div class="stat-card-label">Minutes Today</div>
+    <div class="stat-card-num">{{ total_mins_today }}</div>
+  </div>
+  <div class="stat-card" style="--stat-color:var(--accent)">
+    <div class="stat-card-bg-icon">🔥</div>
+    <div class="stat-card-label">Current Streak</div>
+    <div class="stat-card-num">{{ streak }}<span class="denom">d</span></div>
+  </div>
+  <div class="stat-card" style="--stat-color:var(--violet)">
+    <div class="stat-card-bg-icon">📅</div>
+    <div class="stat-card-label">Sessions This Week</div>
+    <div class="stat-card-num">{{ weekly_sessions }}</div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Workout Cards -->
+{% if workouts %}
+<div class="exercise-grid">
+  {% for w in workouts %}
+  {% set log = logs_today|selectattr('workout_id','eq',w.id)|list %}
+  {% set done = w.id in done_ids %}
+  <div class="exercise-card {% if done %}exercise-done{% endif %}">
+    <div class="exercise-card-top">
+      <div class="exercise-type-icon">
+        {% if w.type == 'reps' %}💪
+        {% elif w.type == 'cardio' %}🏃
+        {% elif w.type == 'weights' %}🏋️
+        {% elif w.type == 'flexibility' %}🧘
+        {% elif w.type == 'duration' %}⏱
+        {% else %}⚡{% endif %}
+      </div>
+      <div class="exercise-info">
+        <div class="exercise-name">{{ w.name }}</div>
+        <div class="exercise-meta">{{ w.type|title }} {% if w.unit %}· {{ w.unit }}{% endif %}</div>
+      </div>
+      <div class="exercise-actions">
+        <button class="icon-btn" onclick="openModal('modal-edit-workout-{{ w.id }}')" title="Edit">✏</button>
+        <form method="POST" action="/delete-workout/{{ w.id }}" style="display:inline"
+              onsubmit="return confirm('Delete {{ w.name }}?')">
+          <button class="icon-btn icon-btn-danger" type="submit">✕</button>
+        </form>
+      </div>
+    </div>
+
+    {% set pb = personal_bests.get(w.id, {}) %}
+    {% if pb.next_target %}
+    <div class="exercise-pb-bar">
+      <span class="pb-label">🏆 Best: {% if pb.reps %}{{ pb.reps }} reps{% elif pb.distance %}{{ pb.distance }}{% elif pb.duration %}{{ pb.duration }}m{% endif %}</span>
+      <span class="pb-next">→ Target: {{ pb.next_target }}</span>
+    </div>
+    {% endif %}
+    {% if done and log %}
+    <div class="exercise-logged-data">
+      {% set l = log[0] %}
+      <div class="exercise-log-pills">
+        {% if l.sets %}<span class="ex-log-pill">{{ l.sets }} sets</span>{% endif %}
+        {% if l.reps %}<span class="ex-log-pill">{{ l.reps }} reps</span>{% endif %}
+        {% if l.weight %}<span class="ex-log-pill">{{ l.weight }} kg</span>{% endif %}
+        {% if l.distance %}<span class="ex-log-pill">{{ l.distance }}</span>{% endif %}
+        {% if l.duration_minutes %}<span class="ex-log-pill">{{ l.duration_minutes }} min</span>{% endif %}
+        {% if l.notes %}<span class="ex-log-pill ex-log-note">{{ l.notes[:30] }}</span>{% endif %}
+      </div>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <button class="btn-secondary btn-sm" onclick="openLogModal({{ w.id }}, '{{ w.name }}', '{{ w.type }}')">Edit Log</button>
+        <form method="POST" action="/unlog-workout/{{ w.id }}" style="display:inline">
+          <button class="btn-secondary btn-sm" type="submit" style="color:var(--danger)">Undo</button>
+        </form>
+      </div>
+    </div>
+    {% else %}
+    <div class="exercise-card-footer">
+      {% if w.notes %}<div class="exercise-notes text-muted">{{ w.notes }}</div>{% endif %}
+      <button class="exercise-log-btn" onclick="openLogModal({{ w.id }}, '{{ w.name }}', '{{ w.type }}')">
+        ➕ Log Performance
+      </button>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Edit Modal -->
+  <div id="modal-edit-workout-{{ w.id }}" class="modal-content hidden">
+    <div class="modal-header"><h3>Edit Workout</h3></div>
+    <form method="POST" action="/edit-workout/{{ w.id }}">
+      <div class="form-group"><label>Workout Name</label>
+        <input type="text" name="name" value="{{ w.name }}" required class="form-input"/></div>
+      <div class="form-row">
+        <div class="form-group"><label>Type</label>
+          <select name="type" class="form-input">
+            {% for t in [('reps','Reps / Sets'),('cardio','Cardio'),('weights','Weights'),('flexibility','Flexibility / Yoga'),('duration','Duration Only'),('general','General')] %}
+            <option value="{{ t[0] }}" {% if w.type==t[0] %}selected{% endif %}>{{ t[1] }}</option>
+            {% endfor %}
+          </select></div>
+        <div class="form-group"><label>Unit label</label>
+          <input type="text" name="unit" value="{{ w.unit }}" class="form-input" placeholder="e.g. km, min, kg…"/></div>
+      </div>
+      <div class="form-group"><label>Notes</label>
+        <textarea name="notes" class="form-input" rows="2">{{ w.notes }}</textarea></div>
+      <div class="form-actions">
+        <button type="button" class="btn-secondary" onclick="closeActiveModal()">Cancel</button>
+        <button type="submit" class="btn-primary">Save</button>
+      </div>
+    </form>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="mt-16" style="text-align:right">
+  <a href="/exercise-history" class="btn-secondary btn-sm">📊 View Full History →</a>
+</div>
+
+{% else %}
+<div class="empty-state">
+  <div class="empty-icon">🏋️</div>
+  <div class="empty-title">No workouts yet</div>
+  <div class="empty-sub">Add workouts like Pushups, Running, Squats — then log real performance each day</div>
+  <button class="btn-primary" onclick="openModal('modal-add-workout')">+ Add Your First Workout</button>
+</div>
+{% endif %}
+
+<!-- Add Workout Modal -->
+<div id="modal-add-workout" class="modal-content hidden">
+  <div class="modal-header"><h3>Add Workout</h3><p>Performance tracked fresh every day — no auto-repeat</p></div>
+  <form method="POST" action="/add-workout">
+    <div class="form-group"><label>Workout Name</label>
+      <input type="text" name="name" required class="form-input" placeholder="e.g. Pushups, Running, Squats…"/></div>
+    <div class="form-row">
+      <div class="form-group"><label>Type</label>
+        <select name="type" class="form-input" id="workout-type-select" onchange="updateUnitHint(this)">
+          <option value="reps">Reps / Sets (Pushups, Squats)</option>
+          <option value="cardio">Cardio (Running, Walking)</option>
+          <option value="weights">Weights (Gym)</option>
+          <option value="flexibility">Flexibility / Yoga</option>
+          <option value="duration">Duration Only</option>
+          <option value="general">General</option>
+        </select></div>
+      <div class="form-group"><label>Unit Label</label>
+        <input type="text" name="unit" id="unit-hint" class="form-input" placeholder="reps / km / min…"/></div>
+    </div>
+    <div class="form-group"><label>Notes (optional)</label>
+      <textarea name="notes" class="form-input" rows="2" placeholder="Target reps, goals…"></textarea></div>
+    <div class="form-actions">
+      <button type="button" class="btn-secondary" onclick="closeActiveModal()">Cancel</button>
+      <button type="submit" class="btn-primary">Add Workout</button>
+    </div>
+  </form>
+</div>
+
+<!-- Dynamic Log Performance Modal (injected by JS) -->
+<div id="modal-log-performance" class="modal-content hidden">
+  <div class="modal-header"><h3 id="log-modal-title">Log Performance</h3>
+    <p>Enter today's actual performance — fresh data required</p></div>
+  <form id="log-form">
+    <div id="log-fields"></div>
+    <div class="form-group"><label>Notes (optional)</label>
+      <input type="text" name="notes" class="form-input" placeholder="How did it feel? Any notes…"/></div>
+    <div class="form-actions">
+      <button type="button" class="btn-secondary" onclick="closeActiveModal()">Cancel</button>
+      <button type="button" class="btn-primary" onclick="submitLog()">Log Performance</button>
+    </div>
+  </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentLogWorkoutId = null;
+let currentLogType = null;
+
+function updateUnitHint(sel) {
+  const hints = {reps:'reps', cardio:'km / min', weights:'kg', flexibility:'min', duration:'minutes', general:''};
+  document.getElementById('unit-hint').placeholder = hints[sel.value] || '';
+}
+
+function openLogModal(wid, name, type) {
+  currentLogWorkoutId = wid;
+  currentLogType = type;
+  document.getElementById('log-modal-title').textContent = 'Log: ' + name;
+
+  let fields = '';
+  if (type === 'reps') {
+    fields = `
+      <div class="form-row">
+        <div class="form-group"><label>Sets</label><input type="number" name="sets" class="form-input" placeholder="e.g. 3" min="1"/></div>
+        <div class="form-group"><label>Reps</label><input type="number" name="reps" class="form-input" placeholder="e.g. 20" min="1"/></div>
+      </div>`;
+  } else if (type === 'cardio') {
+    fields = `
+      <div class="form-row">
+        <div class="form-group"><label>Distance</label><input type="text" name="distance" class="form-input" placeholder="e.g. 5 km"/></div>
+        <div class="form-group"><label>Duration (minutes)</label><input type="number" name="duration_minutes" class="form-input" placeholder="e.g. 30" min="1"/></div>
+      </div>`;
+  } else if (type === 'weights') {
+    fields = `
+      <div class="form-row">
+        <div class="form-group"><label>Sets</label><input type="number" name="sets" class="form-input" placeholder="3"/></div>
+        <div class="form-group"><label>Reps</label><input type="number" name="reps" class="form-input" placeholder="10"/></div>
+      </div>
+      <div class="form-group"><label>Weight (kg)</label><input type="number" name="weight" class="form-input" placeholder="e.g. 60" step="0.5"/></div>`;
+  } else if (type === 'flexibility') {
+    fields = `<div class="form-group"><label>Duration (minutes)</label><input type="number" name="duration_minutes" class="form-input" placeholder="e.g. 20" min="1"/></div>`;
+  } else {
+    fields = `
+      <div class="form-row">
+        <div class="form-group"><label>Duration (minutes)</label><input type="number" name="duration_minutes" class="form-input" placeholder="e.g. 30"/></div>
+        <div class="form-group"><label>Distance / Count</label><input type="text" name="distance" class="form-input" placeholder="optional"/></div>
+      </div>`;
+  }
+  document.getElementById('log-fields').innerHTML = fields;
+  openModal('modal-log-performance');
+}
+
+function submitLog() {
+  const form = document.getElementById('log-form');
+  const fd = new FormData(form);
+  fetch('/log-workout/' + currentLogWorkoutId, {method:'POST', body:fd})
+    .then(r => r.json()).then(d => {
+      if (d.status === 'ok') { closeActiveModal(); { sessionStorage.setItem('aurix_splash_done','1'); location.reload(); }; }
+    });
+}
+</script>
+{% endblock %}

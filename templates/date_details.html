@@ -1,0 +1,243 @@
+{% extends "base.html" %}
+{% block title %}{{ date_str }} Details{% endblock %}
+{% block topbar_title %}{{ date_str }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <a href="/calendar" class="back-link">← Calendar</a>
+    <h1 class="page-title">{{ date_str }}</h1>
+    <p class="page-sub">
+      {% if prod_score is not none %}
+        Productivity Score: <strong>{{ prod_score }}/100</strong>
+      {% else %}
+        No activity recorded for this date
+      {% endif %}
+    </p>
+  </div>
+</div>
+
+<!-- Score + Quick Stats -->
+<div class="card mb-20">
+  <div class="date-score-card">
+    <div class="date-ring-wrap ring-wrap">
+      {% if prod_score is not none %}
+      <svg viewBox="0 0 80 80" class="ring-svg">
+        <circle cx="40" cy="40" r="34" class="ring-bg"/>
+        <circle cx="40" cy="40" r="34" class="ring-fill"
+          stroke-dasharray="{{ (prod_score / 100 * 213.6)|round(1) }} 213.6"/>
+      </svg>
+      <div class="ring-label">
+        <div class="ring-num">{{ prod_score }}</div>
+        <div class="ring-text">Score</div>
+      </div>
+      {% else %}
+      <div style="width:80px;height:80px;border-radius:50%;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--text3);text-align:center;font-weight:700">No<br>Data</div>
+      {% endif %}
+    </div>
+    <div class="date-mini-stats">
+      {% if mood %}<div class="date-mini-stat"><div class="dms-num">{{ mood }}</div><div class="dms-label">Mood</div></div>{% endif %}
+      <div class="date-mini-stat"><div class="dms-num">{{ focus_mins }}m</div><div class="dms-label">Focus Time</div></div>
+      {% if sleep %}<div class="date-mini-stat"><div class="dms-num">{{ sleep.hours }}h</div><div class="dms-label">Sleep</div></div>{% endif %}
+      <div class="date-mini-stat"><div class="dms-num">{{ done_habits|length }}/{{ (done_habits|length + missed_habits|length) }}</div><div class="dms-label">Habits</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="two-col-grid">
+  <!-- Habits -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-icon ci-emerald">✅</div>
+      <div class="card-title">Habits</div>
+      <div class="card-badge">{{ done_habits|length }}/{{ (done_habits|length + missed_habits|length) }}</div>
+    </div>
+    {% if done_habits %}
+    <div class="dd-list">
+      {% for h in done_habits %}
+      <div class="dd-item dd-done">✓ {{ h.name }}</div>
+      {% endfor %}
+    </div>
+    {% endif %}
+    {% if missed_habits %}
+    <div class="dd-list mt-8">
+      {% for h in missed_habits %}
+      <div class="dd-item dd-missed">✗ {{ h.name }}</div>
+      {% endfor %}
+    </div>
+    {% endif %}
+    {% if not done_habits and not missed_habits %}
+    <div class="empty-sm">No habits tracked this day</div>
+    {% endif %}
+  </div>
+
+  <!-- Spending -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-icon ci-coral">💰</div>
+      <div class="card-title">Spending</div>
+      <div class="card-badge">{{ currency }}{{ total_spend|int }}</div>
+    </div>
+    {% if expenses %}
+    {% for e in expenses %}
+    <div class="dd-expense">
+      <span class="dd-exp-cat">{{ e.category }}</span>
+      <span class="dd-exp-desc">{{ e.description or '—' }}</span>
+      <span class="dd-exp-amt">{{ currency }}{{ e.amount|int }}</span>
+    </div>
+    {% endfor %}
+    {% else %}
+    <div class="empty-sm">No expenses this day</div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Study Activity -->
+{% if study_activity %}
+<div class="card mb-20">
+  <div class="card-header">
+    <div class="card-icon ci-violet">📚</div>
+    <div class="card-title">Study Activity</div>
+  </div>
+  <div class="dd-list">
+    {% for s in study_activity %}
+    <div class="dd-item dd-study">
+      <span class="dd-study-exam">{{ s.exam }}</span> →
+      <span class="dd-study-subj">{{ s.subject }}</span> →
+      {{ s.chapter }}
+      <span class="ch-status-badge ch-s-{{ s.status|lower|replace(' ','-') }} ml-8">{{ s.status }}</span>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<!-- Tasks -->
+<div class="card mb-20">
+  <div class="card-header">
+    <div class="card-icon ci-amber">📋</div>
+    <div class="card-title">Tasks</div>
+    <div class="card-badge">{{ tasks|selectattr('completed')|list|length }}/{{ tasks|length }}</div>
+  </div>
+  {% if tasks %}
+  {% for t in tasks %}
+  <div class="dd-task {% if t.completed %}dd-task-done{% endif %}">
+    <span class="{% if t.completed %}text-muted line-through{% endif %}">{{ t.title }}</span>
+    <span class="priority-badge priority-{{ t.priority|lower }}">{{ t.priority }}</span>
+  </div>
+  {% endfor %}
+  {% else %}
+  <div class="empty-sm">No tasks for this day</div>
+  {% endif %}
+</div>
+
+<!-- Sleep -->
+{% if sleep %}
+<div class="card mb-20">
+  <div class="card-header">
+    <div class="card-icon ci-sky">🌙</div>
+    <div class="card-title">Sleep</div>
+  </div>
+  <div class="sleep-detail-row">
+    <div class="sleep-stat"><div class="sleep-stat-num">{{ sleep.sleep_time }}</div><div class="sleep-stat-label">Bedtime</div></div>
+    <div class="sleep-stat"><div class="sleep-stat-num">{{ sleep.wake_time }}</div><div class="sleep-stat-label">Wake up</div></div>
+    <div class="sleep-stat"><div class="sleep-stat-num">{{ sleep.hours }}h</div><div class="sleep-stat-label">Total</div></div>
+    <div class="sleep-stat"><div class="sleep-stat-num">{{ sleep.quality }}</div><div class="sleep-stat-label">Quality</div></div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Exercise Activity -->
+{% if exercise_entries %}
+<div class="card mb-20">
+  <div class="card-header">
+    <div class="card-icon ci-coral">🏋️</div>
+    <div class="card-title">Exercise</div>
+    <div class="card-badge">{{ exercise_entries|length }} workout{{ 's' if exercise_entries|length != 1 }}</div>
+  </div>
+  <div class="dd-list">
+    {% for entry in exercise_entries %}
+    <div class="dd-item dd-study">
+      <span class="dd-study-subj">{{ entry.workout.name }}</span>
+      <div class="exercise-log-pills" style="margin-left:8px">
+        {% if entry.log.sets %}<span class="ex-log-pill">{{ entry.log.sets }} sets</span>{% endif %}
+        {% if entry.log.reps %}<span class="ex-log-pill">{{ entry.log.reps }} reps</span>{% endif %}
+        {% if entry.log.weight %}<span class="ex-log-pill">{{ entry.log.weight }} kg</span>{% endif %}
+        {% if entry.log.distance %}<span class="ex-log-pill">{{ entry.log.distance }}</span>{% endif %}
+        {% if entry.log.duration_minutes %}<span class="ex-log-pill">{{ entry.log.duration_minutes }} min</span>{% endif %}
+        {% if entry.log.notes %}<span class="ex-log-pill ex-log-note">{{ entry.log.notes[:30] }}</span>{% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<!-- Focus Sessions -->
+{% if focus_sessions_day %}
+<div class="card mb-20">
+  <div class="card-header">
+    <div class="card-icon ci-violet">⏱</div>
+    <div class="card-title">Focus Sessions</div>
+    <div class="card-badge">{{ focus_sessions_day|selectattr('completed')|list|length }} completed</div>
+  </div>
+  <div class="dd-list">
+    {% for s in focus_sessions_day %}
+    <div class="dd-item {% if s.completed %}dd-done{% else %}dd-missed{% endif %}">
+      {% if s.completed %}✓{% else %}—{% endif %} {{ s.label }} — {{ s.category }} · {{ s.duration_minutes }}m
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<!-- Thoughts for this date -->
+<div class="card mb-20">
+  <div class="card-header">
+    <div class="card-icon ci-violet">💭</div>
+    <div class="card-title">Thoughts — {{ date_str }}</div>
+    <a href="/thoughts?date={{ date_str }}" class="card-link">All →</a>
+  </div>
+  {% if thoughts_date %}
+  <div class="notes-list">
+    {% for t in thoughts_date %}
+    <div class="thought-card" style="margin-bottom:10px">
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+        <span class="thought-type-badge thought-type-{{ t.type|lower }}">{{ t.type }}</span>
+        {% if t.mood %}<span>{{ t.mood }}</span>{% endif %}
+      </div>
+      <div class="thought-title" style="font-size:14px">{{ t.title }}</div>
+      <div class="thought-preview">{{ t.content[:150] }}{% if t.content|length > 150 %}…{% endif %}</div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-sm">No thoughts for this date</div>
+  {% endif %}
+  <form method="POST" action="/add-thought" class="note-add-form mt-12">
+    <input type="hidden" name="date" value="{{ date_str }}"/>
+    <input type="hidden" name="type" value="Thought"/>
+    <input type="text" name="title" class="form-input" style="margin-bottom:6px" placeholder="Title…"/>
+    <textarea name="content" class="form-input" rows="2" placeholder="Add a thought for {{ date_str }}…"></textarea>
+    <div class="form-row mt-8">
+      <button type="submit" class="btn-primary">Add Thought</button>
+    </div>
+  </form>
+</div>
+
+<!-- Journal -->
+<div class="card">
+  <div class="card-header">
+    <div class="card-icon ci-violet">✍️</div>
+    <div class="card-title">Journal Entry</div>
+  </div>
+  <form method="POST" action="/save-journal">
+    <input type="hidden" name="date" value="{{ date_str }}"/>
+    <textarea name="journal" class="form-input journal-textarea" rows="6"
+              placeholder="How was this day? Reflect, plan, write anything…">{{ journal }}</textarea>
+    <div class="form-actions">
+      <button type="submit" class="btn-primary">Save Journal</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

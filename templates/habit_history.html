@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}{{ habit.name }} History{% endblock %}
+{% block topbar_title %}Habit History{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <a href="/habits" class="back-link">← Habits</a>
+    <h1 class="page-title">{{ habit.name }}</h1>
+    <p class="page-sub">Last 30 days</p>
+  </div>
+</div>
+<div class="card">
+  <div class="card-header"><div class="card-title">30-Day History</div></div>
+  <div class="history-grid">
+    {% for h in history|reverse %}
+    <div class="history-cell {% if h.done %}history-done{% else %}history-miss{% endif %}"
+         title="{{ h.date }}">{{ h.date[8:] }}</div>
+    {% endfor %}
+  </div>
+  <div class="history-legend">
+    <span class="history-done history-cell-sm">Done</span>
+    <span class="history-miss history-cell-sm">Missed</span>
+  </div>
+</div>
+{% endblock %}

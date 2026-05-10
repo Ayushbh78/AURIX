@@ -1,0 +1,263 @@
+{% extends "base.html" %}
+{% block title %}Spending Tracker{% endblock %}
+{% block topbar_title %}Spending Tracker{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Spending Tracker</h1>
+    <p class="page-sub">
+      {% if budget > 0 %}Budget: {{ currency }}{{ budget|int }} · {% endif %}
+      Spent this month: {{ currency }}{{ month_total|int }}
+    </p>
+  </div>
+  <div class="btn-row">
+    <button class="btn-secondary" onclick="openModal('modal-set-budget')">Set Budget</button>
+    <button class="btn-primary" onclick="openModal('modal-add-expense')">+ Add Expense</button>
+  </div>
+</div>
+
+<!-- Summary Cards -->
+<div class="cards-grid cards-grid-4">
+  <div class="card card-sm">
+    <div class="card-sm-label">Today</div>
+    <div class="card-sm-num">{{ currency }}{{ today_total|int }}</div>
+  </div>
+  <div class="card card-sm">
+    <div class="card-sm-label">This Week</div>
+    <div class="card-sm-num">{{ currency }}{{ week_total|int }}</div>
+  </div>
+  <div class="card card-sm">
+    <div class="card-sm-label">This Month</div>
+    <div class="card-sm-num">{{ currency }}{{ month_total|int }}</div>
+  </div>
+  <div class="card card-sm {% if budget > 0 and budget_remaining < 0 %}card-danger{% endif %}">
+    <div class="card-sm-label">Budget Left</div>
+    <div class="card-sm-num {% if budget > 0 and budget_remaining < 0 %}text-danger{% endif %}">
+      {% if budget > 0 %}{{ currency }}{{ budget_remaining|int }}{% else %}—{% endif %}
+    </div>
+  </div>
+</div>
+
+{% if budget > 0 %}
+<!-- Budget Progress -->
+<div class="card mb-20">
+  <div class="card-header">
+    <div class="card-title">Monthly Budget</div>
+    <div class="card-badge {% if budget_pct > 90 %}badge-danger{% elif budget_pct > 70 %}badge-warn{% endif %}">
+      {{ budget_pct }}% used
+    </div>
+  </div>
+  <div class="big-progress-wrap">
+    <div class="big-progress-bar">
+      <div class="big-progress-fill {% if budget_pct > 90 %}fill-danger{% elif budget_pct > 70 %}fill-warn{% endif %}"
+           style="width:{{ [budget_pct, 100]|min }}%"></div>
+    </div>
+    <div class="big-progress-label" style="white-space:nowrap;font-size:13px">{{ currency }}{{ month_total|int }} / {{ currency }}{{ budget|int }}</div>
+  </div>
+  {% if budget_pct > 80 %}
+  <div class="alert-warning">⚠ You've used {{ budget_pct }}% of your monthly budget!</div>
+  {% endif %}
+</div>
+{% endif %}
+
+<!-- Charts Row -->
+<div class="two-col-grid">
+  <!-- Daily trend -->
+  <div class="card">
+    <div class="card-header"><div class="card-title">7-Day Trend</div></div>
+    <div class="bar-chart-wrap">
+      {% set max_day = daily_trend|map(attribute='amount')|max if daily_trend else 1 %}
+      {% for d in daily_trend %}
+      <div class="bar-chart-col">
+        <div class="bar-chart-bar-wrap">
+          <div class="bar-chart-bar bar-spend"
+               style="height:{{ ((d.amount / max_day * 100) if max_day else 0)|int }}%"
+               data-tip="{{ currency }}{{ d.amount|int }}"></div>
+        </div>
+        <div class="bar-chart-label">{{ d.date[5:] }}</div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Category breakdown -->
+  <div class="card">
+    <div class="card-header"><div class="card-title">By Category (This Month)</div></div>
+    {% if cat_totals %}
+      {% set total = cat_totals.values()|sum %}
+      {% for cat, amt in cat_totals|dictsort(by='value', reverse=true) %}
+      <div class="cat-row">
+        <div class="cat-name">{{ cat }}</div>
+        <div class="cat-bar-wrap">
+          <div class="cat-bar" style="width:{{ (amt/total*100)|int }}%"></div>
+        </div>
+        <div class="cat-amt">{{ currency }}{{ amt|int }}</div>
+      </div>
+      {% endfor %}
+    {% else %}
+      <div class="empty-sm">No expenses this month</div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Expense History -->
+<div class="card">
+  <div class="card-header">
+    <div class="card-title">Expense History</div>
+    <input type="text" id="expense-search" placeholder="Search…" class="search-input" oninput="filterExpenses(this.value)"/>
+  </div>
+  {% if expenses %}
+  <div class="expense-list" id="expense-list">
+    {% for e in expenses %}
+    <div class="expense-row" data-desc="{{ e.description|lower }}" data-cat="{{ e.category|lower }}">
+      <div class="expense-cat-dot cat-{{ e.category|lower|replace(' ','') }}"></div>
+      <div class="expense-info">
+        <div class="expense-desc">{{ e.description or e.category }}</div>
+        <div class="expense-meta">{{ e.date }} · {{ e.category }} · {{ e.payment_method }}
+          {% if e.tag %} · <span class="tag-pill">{{ e.tag }}</span>{% endif %}
+        </div>
+      </div>
+      <div class="expense-amount">{{ currency }}{{ e.amount|int }}</div>
+      <div class="expense-actions" style="flex-shrink:0">
+        <button class="icon-btn" onclick="openModal('modal-edit-exp-{{ e.id }}')">✏</button>
+        <form method="POST" action="/delete-expense/{{ e.id }}" style="display:inline"
+              onsubmit="return confirm('Delete this expense?')">
+          <button class="icon-btn icon-btn-danger" type="submit">✕</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Edit Expense Modal -->
+    <div id="modal-edit-exp-{{ e.id }}" class="modal-content hidden">
+      <div class="modal-header"><h3>Edit Expense</h3></div>
+      <form method="POST" action="/edit-expense/{{ e.id }}">
+        <div class="form-row">
+          <div class="form-group">
+            <label>Amount</label>
+            <input type="number" name="amount" value="{{ e.amount }}" step="0.01" required class="form-input"/>
+          </div>
+          <div class="form-group">
+            <label>Category</label>
+            <select name="category" class="form-input">
+              {% for c in ['Food','Travel','Shopping','Recharge','Education','Entertainment','Health','Bills','Investment','Other'] %}
+              <option {% if e.category==c %}selected{% endif %}>{{ c }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Description</label>
+          <input type="text" name="description" value="{{ e.description }}" class="form-input"/>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Date</label>
+            <input type="date" name="date" value="{{ e.date }}" class="form-input"/>
+          </div>
+          <div class="form-group">
+            <label>Payment</label>
+            <select name="payment_method" class="form-input">
+              {% for m in ['Cash','UPI','Card'] %}
+              <option {% if e.payment_method==m %}selected{% endif %}>{{ m }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Tag</label>
+          <input type="text" name="tag" value="{{ e.tag }}" class="form-input" placeholder="optional tag"/>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn-secondary" onclick="closeActiveModal()">Cancel</button>
+          <button type="submit" class="btn-primary">Save</button>
+        </div>
+      </form>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <div class="empty-icon">◈</div>
+    <div class="empty-title">No expenses yet</div>
+    <div class="empty-sub">Start tracking your spending</div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Add Expense Modal -->
+<div id="modal-add-expense" class="modal-content hidden">
+  <div class="modal-header"><h3>Add Expense</h3></div>
+  <form method="POST" action="/add-expense">
+    <div class="form-row">
+      <div class="form-group">
+        <label>Amount ({{ currency }})</label>
+        <input type="number" name="amount" step="0.01" required class="form-input" placeholder="0.00"/>
+      </div>
+      <div class="form-group">
+        <label>Category</label>
+        <select name="category" class="form-input">
+          {% for c in ['Food','Travel','Shopping','Recharge','Education','Entertainment','Health','Bills','Investment','Other'] %}
+          <option>{{ c }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Description</label>
+      <input type="text" name="description" class="form-input" placeholder="What was this for?"/>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Date</label>
+        <input type="date" name="date" value="{{ today_exp[0].date if today_exp else '' }}" class="form-input" id="exp-date"/>
+      </div>
+      <div class="form-group">
+        <label>Payment Method</label>
+        <select name="payment_method" class="form-input">
+          <option>Cash</option><option>UPI</option><option>Card</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Tag (optional)</label>
+      <input type="text" name="tag" class="form-input" placeholder="e.g. office, weekend…"/>
+    </div>
+    <div class="form-actions">
+      <button type="button" class="btn-secondary" onclick="closeActiveModal()">Cancel</button>
+      <button type="submit" class="btn-primary">Add Expense</button>
+    </div>
+  </form>
+</div>
+
+<!-- Set Budget Modal -->
+<div id="modal-set-budget" class="modal-content hidden">
+  <div class="modal-header"><h3>Set Monthly Budget</h3></div>
+  <form method="POST" action="/set-budget">
+    <div class="form-group">
+      <label>Monthly Budget</label>
+      <input type="number" name="monthly" value="{{ budget }}" required class="form-input"/>
+    </div>
+    <div class="form-group">
+      <label>Currency Symbol</label>
+      <input type="text" name="currency" value="{{ currency }}" class="form-input" maxlength="3"/>
+    </div>
+    <div class="form-actions">
+      <button type="button" class="btn-secondary" onclick="closeActiveModal()">Cancel</button>
+      <button type="submit" class="btn-primary">Save Budget</button>
+    </div>
+  </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('exp-date').value = new Date().toISOString().split('T')[0];
+function filterExpenses(q) {
+  document.querySelectorAll('.expense-row').forEach(row => {
+    const match = row.dataset.desc.includes(q.toLowerCase()) || row.dataset.cat.includes(q.toLowerCase());
+    row.style.display = match ? '' : 'none';
+  });
+}
+</script>
+{% endblock %}

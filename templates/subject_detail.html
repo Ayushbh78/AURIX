@@ -1,0 +1,622 @@
+{% extends "base.html" %}
+{% block title %}{{ subj.name }}{% endblock %}
+{% block topbar_title %}{{ subj.name }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    {% if exam %}<a href="/exam/{{ exam.id }}" class="back-link">← {{ exam.name }}</a>
+    {% else %}<a href="/study" class="back-link">← Study</a>{% endif %}
+    <h1 class="page-title">
+      {{ subj.name }}
+      {% if subj.weak_subject %}<span class="weak-badge">⚠ Weak</span>{% endif %}
+    </h1>
+    <p class="page-sub">{{ subj.progress }}% complete · {{ subj.chapters|length }} chapters</p>
+  </div>
+  <div class="btn-row">
+    <button class="btn-secondary" onclick="openModal('modal-add-revision')">+ Subject Revision</button>
+    <button class="btn-primary" onclick="openModal('modal-add-chapter')">+ Add Chapter</button>
+  </div>
+</div>
+
+<!-- Subject Progress Card -->
+<div class="card mb-20">
+  <div class="card-header">
+    <div class="card-title">Subject Progress</div>
+    <span class="status-badge status-{{ subj.status|lower|replace(' ','-') }}">{{ subj.status }}</span>
+  </div>
+  <div class="big-progress-wrap">
+    <div class="big-progress-bar">
+      <div class="big-progress-fill" style="width:{{ subj.progress }}%"></div>
+    </div>
+    <div class="big-progress-label">{{ subj.progress }}%</div>
+  </div>
+  <div class="subj-stats-row">
+    <div class="subj-stat">
+      <span class="subj-stat-num">{{ subj.chapters|selectattr('status','eq','Completed')|list|length }}</span>
+      <span class="subj-stat-label">Done</span>
+    </div>
+    <div class="subj-stat">
+      <span class="subj-stat-num">{{ subj.chapters|selectattr('status','eq','In Progress')|list|length }}</span>
+      <span class="subj-stat-label">In Progress</span>
+    </div>
+    <div class="subj-stat">
+      <span class="subj-stat-num">{{ subj.chapters|selectattr('status','eq','Revision Pending')|list|length }}</span>
+      <span class="subj-stat-label">Revision</span>
+    </div>
+    <div class="subj-stat">
+      <span class="subj-stat-num">{{ subj.chapters|selectattr('important','eq',true)|list|length }}</span>
+      <span class="subj-stat-label">Important</span>
+    </div>
+  </div>
+  {% if subj.notes %}<div class="exam-notes-box">{{ subj.notes }}</div>{% endif %}
+  {% if subj.reference_books or subj.resource_links %}
+  <div class="subj-resources">
+    {% if subj.reference_books %}<span>📚 {{ subj.reference_books }}</span>{% endif %}
+    {% if subj.resource_links %}<span>🔗 {{ subj.resource_links }}</span>{% endif %}
+  </div>
+  {% endif %}
+</div>
+
+<!-- Subject-Level Revisions -->
+{% if subj.revisions %}
+<div class="card mb-20">
+  <div class="card-header"><div class="card-title">Subject Revision Log</div></div>
+  <div class="revision-list">
+    {% for r in subj.revisions %}
+    <div class="revision-item">
+      <span class="revision-type">{{ r.type }}</span>
+      <span class="revision-date">{{ r.date }}</span>
+      <span class="confidence-badge conf-{{ r.confidence|lower }}">{{ r.confidence }}</span>
+      {% if r.notes %}<span class="revision-notes">{{ r.notes }}</span>{% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<!-- Chapters -->
+<div class="card">
+  <div class="card-header">
+    <div class="card-title">Chapters</div>
+    <div class="chapter-filters">
+      <button class="filter-btn active" onclick="filterChapters('all', this)">All</button>
+      <button class="filter-btn" onclick="filterChapters('not-started', this)">Not Started</button>
+      <button class="filter-btn" onclick="filterChapters('in-progress', this)">In Progress</button>
+      <button class="filter-btn" onclick="filterChapters('important', this)">⭐ Important</button>
+      <button class="filter-btn" onclick="filterChapters('revision', this)">Revision</button>
+    </div>
+  </div>
+
+  {% if subj.chapters %}
+  <div class="chapters-list">
+    {% for ch in subj.chapters %}
+    {% set ch_sessions = ch.study_sessions if ch.study_sessions is defined else [] %}
+    {% set ch_revs = ch.chapter_revisions if ch.chapter_revisions is defined else [] %}
+
+    <div class="chapter-item ch-status-{{ ch.status|lower|replace(' ','-') }}"
+         data-important="{{ ch.important }}"
+         data-status="{{ ch.status }}">
+
+      <!-- Chapter Header Row -->
+      <div class="chapter-item-left">
+        <div class="ch-num">{{ ch.number or loop.index }}</div>
+        <div class="ch-info">
+          <div class="ch-name">
+            {% if ch.important %}<span class="ch-star">⭐</span>{% endif %}
+            {{ ch.name }}
+            {% if ch.start_date %}<span class="ch-indicator ind-started" title="Started {{ ch.start_date }}">▶</span>{% endif %}
+            {% if ch.actual_hours %}<span class="ch-indicator ind-studied" title="{{ ch.actual_hours }}h studied">⏱</span>{% endif %}
+            {% if ch_revs %}<span class="ch-indicator ind-revised" title="{{ ch_revs|length }} revision(s)">🔁</span>{% endif %}
+            {% if not ch.start_date %}<span class="ch-indicator ind-pending" title="Not started yet">⏳</span>{% endif %}
+          </div>
+          <div class="ch-meta">
+            <span class="ch-status-badge ch-s-{{ ch.status|lower|replace(' ','-') }}">{{ ch.status }}</span>
+            <span class="priority-badge priority-{{ ch.priority|lower }}">{{ ch.priority }}</span>
+            {% if ch.difficulty %}<span class="diff-badge diff-{{ ch.difficulty|lower }}">{{ ch.difficulty }}</span>{% endif %}
+            {% if ch.estimated_hours %}<span class="ch-time">~{{ ch.estimated_hours }}h est</span>{% endif %}
+            {% if ch.actual_hours %}<span class="ch-time" style="color:var(--accent)">{{ ch.actual_hours }}h logged</span>{% endif %}
+            {% if ch_sessions %}<span class="ch-time">{{ ch_sessions|length }} session{{ 's' if ch_sessions|length != 1 }}</span>{% endif %}
+            {% if ch_revs %}<span class="ch-time" style="color:var(--violet)">{{ ch_revs|length }} rev</span>{% endif %}
+            {% if ch.revision_required %}<span class="ch-rev-tag">📝 Needs revision</span>{% endif %}
+            {% if ch.start_date %}<span class="ch-time">Started: {{ ch.start_date }}</span>{% endif %}
+          </div>
+          {% if ch.notes %}<div class="ch-notes">{{ ch.notes }}</div>{% endif %}
+        </div>
+      </div>
+
+      <div class="chapter-item-right">
+        {% if not ch.start_date %}
+        <button class="btn-start-chapter" onclick="startChapter({{ subj.id }}, {{ ch.id }}, this)"
+                title="Start this chapter — sets today as start date">▶ Start</button>
+        {% endif %}
+        <button class="btn-study-timer"
+                id="timer-btn-{{ ch.id }}"
+                onclick="openStudyTimer({{ subj.id }}, {{ ch.id }}, '{{ ch.name|replace("'","\\'")|e }}')"
+                title="Start a timed study session">⏱ Study</button>
+        <select class="ch-status-select" onchange="quickUpdateChapter({{ subj.id }}, {{ ch.id }}, this.value)">
+          {% for s in ['Not Started','In Progress','Completed','Revision Pending'] %}
+          <option {% if ch.status==s %}selected{% endif %} value="{{ s }}">{{ s }}</option>
+          {% endfor %}
+        </select>
+        <button class="icon-btn" onclick="toggleChapterExpand('ch-expand-{{ ch.id }}', this)" title="Sessions & Revisions">≡</button>
+        <button class="icon-btn" onclick="openModal('modal-edit-ch-{{ ch.id }}')">✏</button>
+        <form method="POST" action="/delete-chapter/{{ subj.id }}/{{ ch.id }}" style="display:inline"
+              onsubmit="return confirm('Delete this chapter?')">
+          <button class="icon-btn icon-btn-danger" type="submit">✕</button>
+        </form>
+      </div>
+
+      <!-- Expandable: Study Sessions + Revisions -->
+      <div id="ch-expand-{{ ch.id }}" class="ch-expand hidden">
+        <div class="ch-expand-inner">
+
+          <!-- STUDY SESSIONS (Part F) -->
+          <div class="ch-section">
+            <div class="ch-section-header">
+              <span style="font-weight:700">⏱ Study Sessions</span>
+              <span style="font-size:12px;color:var(--text3)">
+                {{ ch_sessions|length }} session{{ 's' if ch_sessions|length != 1 }} · {{ ch.actual_hours or 0 }}h total
+              </span>
+              <button class="btn-xs btn-secondary" onclick="toggleForm('sess-form-{{ ch.id }}')">+ Add Session</button>
+            </div>
+            <div id="sess-form-{{ ch.id }}" class="mini-form hidden">
+              <form method="POST" action="/add-study-session/{{ subj.id }}/{{ ch.id }}">
+                <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end">
+                  <div><label style="font-size:11px;color:var(--text3)">Date</label>
+                    <input type="date" name="date" value="{{ today }}" class="form-input form-input-sm"/></div>
+                  <div><label style="font-size:11px;color:var(--text3)">Start Time</label>
+                    <input type="time" name="start_time" class="form-input form-input-sm"/></div>
+                  <div><label style="font-size:11px;color:var(--text3)">End Time</label>
+                    <input type="time" name="end_time" class="form-input form-input-sm"/></div>
+                  <div><label style="font-size:11px;color:var(--text3)">Or Hours</label>
+                    <input type="number" name="duration_hours" class="form-input form-input-sm" step="0.25" placeholder="1.5" style="width:72px"/></div>
+                  <div style="flex:1;min-width:120px"><label style="font-size:11px;color:var(--text3)">Notes</label>
+                    <input type="text" name="notes" class="form-input form-input-sm" placeholder="What you studied…"/></div>
+                  <button type="submit" class="btn-primary btn-sm">Save</button>
+                </div>
+              </form>
+            </div>
+            {% if ch_sessions %}
+            <div class="session-list">
+              {% for ss in ch_sessions %}
+              <div class="session-item">
+                <span class="session-date">{{ ss.date }}</span>
+                {% if ss.start_time and ss.end_time %}
+                <span class="session-time">{{ ss.start_time }}–{{ ss.end_time }}</span>{% endif %}
+                <span class="session-dur">{{ ss.duration }}h</span>
+                {% if ss.notes %}<span class="session-notes">{{ ss.notes }}</span>{% endif %}
+                <form method="POST" action="/delete-study-session/{{ subj.id }}/{{ ch.id }}/{{ ss.id }}" style="display:inline;margin-left:auto">
+                  <button type="submit" class="icon-btn icon-btn-danger btn-xs">✕</button>
+                </form>
+              </div>
+              {% endfor %}
+            </div>
+            {% else %}
+            <div style="font-size:12px;color:var(--text3);padding:4px 0">No sessions yet</div>
+            {% endif %}
+          </div>
+
+          <!-- CHAPTER REVISIONS (Part G) -->
+          <div class="ch-section">
+            <div class="ch-section-header">
+              <span style="font-weight:700">🔁 Revision Tracking</span>
+              <span style="font-size:12px;color:var(--text3)">{{ ch_revs|length }} done</span>
+              <button class="btn-xs btn-secondary" onclick="toggleForm('rev-form-{{ ch.id }}')">+ Mark Done</button>
+            </div>
+            {% if ch_revs %}
+            <div class="revision-list">
+              {% for r in ch_revs %}
+              <div class="revision-item">
+                <span class="revision-type">✔ Rev {{ r.number }}</span>
+                <span class="revision-date">{{ r.date }}</span>
+                <span class="confidence-badge conf-{{ r.confidence|lower }}">{{ r.confidence }}</span>
+                {% if r.notes %}<span class="revision-notes">{{ r.notes }}</span>{% endif %}
+              </div>
+              {% endfor %}
+              {% if ch_revs|length < 3 %}
+              <div class="revision-item" style="opacity:0.5">✖ Final Revision Pending</div>
+              {% endif %}
+            </div>
+            {% else %}
+            <div style="font-size:12px;color:var(--text3);padding:4px 0">No revisions yet</div>
+            {% endif %}
+            <div id="rev-form-{{ ch.id }}" class="mini-form hidden">
+              <form method="POST" action="/add-chapter-revision/{{ subj.id }}/{{ ch.id }}">
+                <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end">
+                  <div><label style="font-size:11px;color:var(--text3)">Date</label>
+                    <input type="date" name="date" value="{{ today }}" class="form-input form-input-sm"/></div>
+                  <div><label style="font-size:11px;color:var(--text3)">Confidence</label>
+                    <select name="confidence" class="form-input form-input-sm">
+                      <option>High</option><option selected>Medium</option><option>Low</option>
+                    </select></div>
+                  <div style="flex:1;min-width:120px"><label style="font-size:11px;color:var(--text3)">Notes</label>
+                    <input type="text" name="notes" class="form-input form-input-sm" placeholder="What you revised…"/></div>
+                  <button type="submit" class="btn-primary btn-sm">Save</button>
+                </div>
+              </form>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Edit Chapter Modal -->
+      <div id="modal-edit-ch-{{ ch.id }}" class="modal-content hidden">
+        <div class="modal-header"><h3>Edit Chapter</h3></div>
+        <form method="POST" action="/edit-chapter/{{ subj.id }}/{{ ch.id }}">
+          <div class="form-row">
+            <div class="form-group"><label>Name</label>
+              <input type="text" name="name" value="{{ ch.name }}" required class="form-input"/></div>
+            <div class="form-group"><label>Chapter #</label>
+              <input type="text" name="number" value="{{ ch.number }}" class="form-input"/></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>Status</label>
+              <select name="status" class="form-input">
+                {% for s in ['Not Started','In Progress','Completed','Revision Pending'] %}
+                <option {% if ch.status==s %}selected{% endif %}>{{ s }}</option>{% endfor %}
+              </select></div>
+            <div class="form-group"><label>Priority</label>
+              <select name="priority" class="form-input">
+                {% for p in ['High','Medium','Low'] %}
+                <option {% if ch.priority==p %}selected{% endif %}>{{ p }}</option>{% endfor %}
+              </select></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>Difficulty</label>
+              <select name="difficulty" class="form-input">
+                {% for d in ['Easy','Medium','Hard'] %}
+                <option {% if ch.difficulty==d %}selected{% endif %}>{{ d }}</option>{% endfor %}
+              </select></div>
+            <div class="form-group"><label>Est. Hours</label>
+              <input type="number" name="estimated_hours" value="{{ ch.estimated_hours }}" class="form-input" step="0.5"/></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label><input type="checkbox" name="important" {% if ch.important %}checked{% endif %}/> ⭐ Important</label></div>
+            <div class="form-group"><label><input type="checkbox" name="revision_required" {% if ch.revision_required %}checked{% endif %}/> 📝 Revision Required</label></div>
+          </div>
+          <div class="form-group"><label>Notes</label>
+            <textarea name="notes" class="form-input" rows="2">{{ ch.notes }}</textarea></div>
+          <div class="form-actions">
+            <button type="button" class="btn-secondary" onclick="closeActiveModal()">Cancel</button>
+            <button type="submit" class="btn-primary">Save</button>
+          </div>
+        </form>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <div class="empty-title">No chapters yet</div>
+    <button class="btn-primary" onclick="openModal('modal-add-chapter')">+ Add Chapter</button>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Add Chapter Modal -->
+<div id="modal-add-chapter" class="modal-content hidden">
+  <div class="modal-header">
+    <h3>Add Chapter</h3>
+    <p style="font-size:12px;color:var(--text3);margin:4px 0 0">Status starts as "Not Started" — click ▶ Start when ready to begin</p>
+  </div>
+  <form method="POST" action="/add-chapter/{{ subj.id }}">
+    <div class="form-row">
+      <div class="form-group"><label>Chapter Name</label>
+        <input type="text" name="name" required class="form-input" placeholder="Chapter title…"/></div>
+      <div class="form-group"><label>Chapter #</label>
+        <input type="text" name="number" class="form-input" placeholder="{{ subj.chapters|length + 1 }}"/></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Priority</label>
+        <select name="priority" class="form-input">
+          <option>High</option><option selected>Medium</option><option>Low</option>
+        </select></div>
+      <div class="form-group"><label>Difficulty</label>
+        <select name="difficulty" class="form-input">
+          <option>Easy</option><option selected>Medium</option><option>Hard</option>
+        </select></div>
+    </div>
+    <div class="form-group"><label>Estimated Hours</label>
+      <input type="number" name="estimated_hours" class="form-input" step="0.5" placeholder="2"/></div>
+    <div class="form-row">
+      <div class="form-group"><label><input type="checkbox" name="important"/> ⭐ Important Chapter</label></div>
+      <div class="form-group"><label><input type="checkbox" name="revision_required"/> 📝 Revision Required</label></div>
+    </div>
+    <div class="form-group"><label>Notes</label>
+      <textarea name="notes" class="form-input" rows="2" placeholder="Key topics, formulas…"></textarea></div>
+    <div class="form-actions">
+      <button type="button" class="btn-secondary" onclick="closeActiveModal()">Cancel</button>
+      <button type="submit" class="btn-primary">Add Chapter</button>
+    </div>
+  </form>
+</div>
+
+<!-- Subject Revision Modal -->
+<div id="modal-add-revision" class="modal-content hidden">
+  <div class="modal-header"><h3>Log Subject Revision</h3></div>
+  <form method="POST" action="/add-revision/{{ subj.id }}">
+    <div class="form-row">
+      <div class="form-group"><label>Revision Type</label>
+        <select name="type" class="form-input">
+          <option>Revision 1</option><option>Revision 2</option>
+          <option>Final Revision</option><option>Quick Glance</option>
+        </select></div>
+      <div class="form-group"><label>Date</label>
+        <input type="date" name="date" class="form-input" value="{{ today }}"/></div>
+    </div>
+    <div class="form-group"><label>Confidence Level</label>
+      <select name="confidence" class="form-input">
+        <option>High</option><option selected>Medium</option><option>Low</option>
+      </select></div>
+    <div class="form-group"><label>Notes</label>
+      <textarea name="notes" class="form-input" rows="2" placeholder="What did you revise?"></textarea></div>
+    <div class="form-actions">
+      <button type="button" class="btn-secondary" onclick="closeActiveModal()">Cancel</button>
+      <button type="submit" class="btn-primary">Log Revision</button>
+    </div>
+  </form>
+</div>
+<!-- ══ STUDY TIMER MODAL ══ -->
+<div id="study-timer-modal" class="modal-content hidden" style="max-width:420px">
+  <div class="modal-header">
+    <h3>⏱ Study Timer</h3>
+    <p id="timer-ch-name" style="font-size:13px;color:var(--text3);margin:4px 0 0"></p>
+  </div>
+
+  <!-- Active timer display -->
+  <div id="timer-running-area" class="hidden" style="text-align:center;padding:24px 0">
+    <div id="timer-clock" style="font-size:52px;font-weight:800;font-family:'JetBrains Mono',monospace;
+         letter-spacing:2px;color:var(--accent)">00:00:00</div>
+    <div style="font-size:12px;color:var(--text3);margin-top:6px">Session in progress</div>
+    <button id="timer-stop-btn" class="btn-primary"
+            style="margin-top:20px;background:var(--red,#ef4444);min-width:140px"
+            onclick="stopTimer()">⏹ Stop & Save</button>
+  </div>
+
+  <!-- Start area -->
+  <div id="timer-start-area" style="padding:8px 0">
+    <div style="font-size:13px;color:var(--text3);margin-bottom:16px">
+      Click Start to begin tracking your study time for this chapter.
+      You can have multiple sessions running across different chapters.
+    </div>
+    <button id="timer-start-btn" class="btn-primary" style="width:100%;padding:14px"
+            onclick="startTimer()">▶ Start Session</button>
+  </div>
+
+  <!-- Today's sessions for this chapter -->
+  <div id="timer-sessions-list" style="margin-top:16px"></div>
+
+  <div class="form-actions" style="margin-top:12px">
+    <button class="btn-secondary" onclick="closeTimerModal()">Close</button>
+  </div>
+</div>
+
+<!-- ══ FLOATING ACTIVE TIMERS WIDGET ══ -->
+<div id="active-timers-widget" class="hidden"
+     style="position:fixed;bottom:80px;right:16px;z-index:9000;
+            background:var(--card);border:1px solid var(--border);
+            border-radius:12px;padding:10px 14px;min-width:200px;
+            box-shadow:0 4px 24px rgba(0,0,0,0.3)">
+  <div style="font-size:11px;color:var(--text3);font-weight:700;margin-bottom:6px">
+    ⏱ ACTIVE SESSIONS
+  </div>
+  <div id="active-timers-list"></div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const today = new Date().toISOString().split('T')[0];
+document.querySelectorAll('input[type="date"]').forEach(el => { if (!el.value) el.value = today; });
+
+/* ── chapter utils ───────────────────────────────────────────── */
+function quickUpdateChapter(sid, cid, status) {
+  const fd = new FormData(); fd.append('status', status);
+  fetch('/toggle-chapter/' + sid + '/' + cid, {method:'POST', body:fd})
+    .then(() => { sessionStorage.setItem('aurix_splash_done','1'); location.reload(); });
+}
+function filterChapters(filter, btn) {
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.chapter-item').forEach(item => {
+    let show = true;
+    if (filter === 'not-started') show = item.dataset.status === 'Not Started';
+    if (filter === 'in-progress')  show = item.dataset.status === 'In Progress';
+    if (filter === 'important')    show = item.dataset.important === 'True';
+    if (filter === 'revision')     show = item.dataset.status  === 'Revision Pending';
+    item.style.display = show ? '' : 'none';
+  });
+}
+function startChapter(sid, cid, btn) {
+  btn.disabled = true; btn.textContent = '…'; btn.style.opacity = '0.6';
+  fetch('/start-chapter/' + sid + '/' + cid, {method:'POST', body:new FormData()})
+    .then(r => r.json()).then(d => {
+      if (d.status === 'ok') {
+        btn.textContent = '✓'; btn.style.background = 'var(--emerald)';
+        btn.style.color = '#fff'; btn.style.opacity = '1';
+        setTimeout(() => { sessionStorage.setItem('aurix_splash_done','1'); location.reload(); }, 500);
+      }
+    });
+}
+function toggleChapterExpand(id, btn) {
+  const el = document.getElementById(id);
+  const closing = !el.classList.contains('hidden');
+  el.classList.toggle('hidden', closing);
+  btn.style.background = closing ? '' : 'var(--indigo)';
+  btn.style.color = closing ? '' : '#fff';
+}
+function toggleForm(id) {
+  const el = document.getElementById(id);
+  el.classList.toggle('hidden');
+  if (!el.classList.contains('hidden')) el.querySelector('input,select')?.focus();
+}
+
+/* ══ STUDY TIMER SYSTEM ══════════════════════════════════════════ */
+let _timerSid = 0, _timerCid = 0, _timerChName = '';
+let _timerInterval = null;
+let _timerStartTs  = null;   // timestamp of start for this chapter (from server)
+
+function openStudyTimer(sid, cid, chName) {
+  _timerSid = sid; _timerCid = cid; _timerChName = chName;
+  document.getElementById('timer-ch-name').textContent = chName;
+  // Check if this chapter already has a running session
+  fetch('/active-session-status').then(r => r.json()).then(d => {
+    const sessions = d.study || [];
+    const running = sessions.find(s => s.chapter_id == cid && s.subject_id == sid);
+    if (running) {
+      _timerStartTs = new Date(running.start).getTime();
+      showTimerRunning();
+    } else {
+      showTimerStart();
+    }
+    renderTodaySessionsInModal(cid);
+    openModal('study-timer-modal');
+  });
+}
+
+function showTimerRunning() {
+  document.getElementById('timer-start-area').classList.add('hidden');
+  document.getElementById('timer-running-area').classList.remove('hidden');
+  if (_timerInterval) clearInterval(_timerInterval);
+  _timerInterval = setInterval(tickClock, 1000);
+  tickClock();
+  // Update the button on the chapter row
+  const btn = document.getElementById('timer-btn-' + _timerCid);
+  if (btn) { btn.textContent = '⏹ Running'; btn.style.background = 'var(--red,#ef4444)'; btn.style.color = '#fff'; }
+}
+
+function showTimerStart() {
+  document.getElementById('timer-running-area').classList.add('hidden');
+  document.getElementById('timer-start-area').classList.remove('hidden');
+  if (_timerInterval) { clearInterval(_timerInterval); _timerInterval = null; }
+}
+
+function tickClock() {
+  if (!_timerStartTs) return;
+  const elapsed = Math.floor((Date.now() - _timerStartTs) / 1000);
+  const h = Math.floor(elapsed / 3600);
+  const m = Math.floor((elapsed % 3600) / 60);
+  const s = elapsed % 60;
+  document.getElementById('timer-clock').textContent =
+    String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+}
+
+function startTimer() {
+  const btn = document.getElementById('timer-start-btn');
+  btn.disabled = true; btn.textContent = 'Starting…';
+  const fd = new FormData();
+  fd.append('subject_id', _timerSid);
+  fd.append('chapter_id', _timerCid);
+  fetch('/start-study-session', {method:'POST', body:fd})
+    .then(r => r.json()).then(d => {
+      if (d.status === 'ok' || d.status === 'already') {
+        _timerStartTs = new Date(d.start).getTime();
+        showTimerRunning();
+        updateActiveWidget();
+      } else {
+        btn.disabled = false; btn.textContent = '▶ Start Session';
+        alert(d.msg || 'Could not start session');
+      }
+    });
+}
+
+function stopTimer() {
+  const btn = document.getElementById('timer-stop-btn');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  if (_timerInterval) { clearInterval(_timerInterval); _timerInterval = null; }
+  const fd = new FormData();
+  fd.append('subject_id', _timerSid);
+  fd.append('chapter_id', _timerCid);
+  fetch('/stop-study-session', {method:'POST', body:fd})
+    .then(r => r.json()).then(d => {
+      if (d.status === 'ok') {
+        showTimerStart();
+        // Reset chapter row button
+        const rowBtn = document.getElementById('timer-btn-' + _timerCid);
+        if (rowBtn) { rowBtn.textContent = '⏱ Study'; rowBtn.style.background = ''; rowBtn.style.color = ''; }
+        renderTodaySessionsInModal(_timerCid);
+        updateActiveWidget();
+        // Show duration toast
+        showToast(`✅ Session saved — ${d.duration_mins} min`);
+        // Reload after short delay so stats update
+        setTimeout(() => { sessionStorage.setItem('aurix_splash_done','1'); location.reload(); }, 1800);
+      } else {
+        btn.disabled = false; btn.textContent = '⏹ Stop & Save';
+        alert(d.msg || 'Could not stop session');
+      }
+    });
+}
+
+function closeTimerModal() {
+  closeActiveModal();
+}
+
+/* Render today's existing sessions inside the modal */
+function renderTodaySessionsInModal(cid) {
+  const el = document.getElementById('timer-sessions-list');
+  // Pull from the inline session data embedded in the page
+  const key = 'sessions_' + cid;
+  const sessions = window._chapterSessions?.[cid] || [];
+  const todaySessions = sessions.filter(s => s.date === today);
+  if (!todaySessions.length) { el.innerHTML = ''; return; }
+  const totalMins = Math.round(todaySessions.reduce((a,s) => a + (s.duration||0)*60, 0));
+  el.innerHTML = `
+    <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:8px">
+      Today's Sessions — ${totalMins} min total
+    </div>
+    ${todaySessions.map(s => `
+      <div style="display:flex;gap:8px;align-items:center;padding:6px 8px;
+                  background:var(--bg2);border-radius:8px;margin-bottom:4px;font-size:12px">
+        <span style="color:var(--text3)">${s.start_time||''}–${s.end_time||''}</span>
+        <span style="color:var(--accent);font-weight:700">${Math.round((s.duration||0)*60)} min</span>
+        ${s.notes ? `<span style="color:var(--text3)">${s.notes}</span>` : ''}
+      </div>`).join('')}`;
+}
+
+/* Floating widget showing all running sessions */
+function updateActiveWidget() {
+  fetch('/active-session-status').then(r => r.json()).then(d => {
+    const sessions = d.study || [];
+    const widget = document.getElementById('active-timers-widget');
+    const list   = document.getElementById('active-timers-list');
+    if (!sessions.length) { widget.classList.add('hidden'); return; }
+    widget.classList.remove('hidden');
+    list.innerHTML = sessions.map(s => {
+      const elapsed = s.elapsed_seconds || 0;
+      const h = Math.floor(elapsed/3600), m = Math.floor((elapsed%3600)/60), sec = elapsed%60;
+      return `<div style="font-size:12px;display:flex;justify-content:space-between;gap:12px;margin-bottom:4px">
+        <span style="color:var(--text2);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Ch ${s.chapter_id}</span>
+        <span style="font-family:monospace;color:var(--accent)">${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}</span>
+      </div>`;
+    }).join('');
+  });
+}
+
+/* Poll active sessions every 30s to keep widget fresh */
+setInterval(updateActiveWidget, 30000);
+updateActiveWidget();
+
+/* Restore running state for any chapters that have active sessions */
+fetch('/active-session-status').then(r => r.json()).then(d => {
+  const sessions = d.study || [];
+  sessions.forEach(s => {
+    const btn = document.getElementById('timer-btn-' + s.chapter_id);
+    if (btn) { btn.textContent = '⏹ Running'; btn.style.background = 'var(--red,#ef4444)'; btn.style.color = '#fff'; }
+  });
+});
+
+function showToast(msg) {
+  const t = document.createElement('div');
+  t.textContent = msg;
+  t.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);' +
+    'background:var(--card);color:var(--text1);padding:10px 20px;border-radius:10px;' +
+    'font-size:13px;z-index:99999;box-shadow:0 4px 20px rgba(0,0,0,0.4);' +
+    'border:1px solid var(--border);font-weight:600;transition:opacity .3s';
+  document.body.appendChild(t);
+  setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 300); }, 2500);
+}
+</script>
+{% endblock %}

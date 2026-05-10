@@ -1,0 +1,259 @@
+{% extends "base.html" %}
+{% block title %}Remember{% endblock %}
+{% block topbar_title %}Remember{% endblock %}
+
+{% macro type_icon(t) %}{% if t == 'Link' %}🔗{% elif t == 'Person' %}👤{% elif t == 'Place' %}📍{% elif t == 'Notes' %}📝{% else %}◦{% endif %}{% endmacro %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Remember</h1>
+    <p class="page-sub">{{ entries|selectattr('status','eq','Active')|list|length }} active · {{ entries|length }} total</p>
+  </div>
+  <button class="btn-primary" onclick="openModal('modal-add-remember')">+ Add Entry</button>
+</div>
+
+{% if entries %}
+<!-- Search + Status Filter -->
+<div class="search-row mb-20">
+  <input type="text" id="rem-search" class="search-input" placeholder="🔍 Search…" oninput="filterRemember(this.value)"/>
+  <div class="filter-pills">
+    <button class="filter-pill active" onclick="filterByStatus('all',this)">All</button>
+    <button class="filter-pill" onclick="filterByStatus('Active',this)">Active</button>
+    <button class="filter-pill" onclick="filterByStatus('Archived',this)">Archived</button>
+  </div>
+</div>
+
+<!-- Type Filter Pills -->
+<div class="rem-type-filters mb-20">
+  <button class="rem-type-pill active" onclick="filterByType('all',this)">✦ All</button>
+  <button class="rem-type-pill" onclick="filterByType('Link',this)">🔗 Links</button>
+  <button class="rem-type-pill" onclick="filterByType('Person',this)">👤 People</button>
+  <button class="rem-type-pill" onclick="filterByType('Place',this)">📍 Places</button>
+  <button class="rem-type-pill" onclick="filterByType('Notes',this)">📝 Notes</button>
+  <button class="rem-type-pill" onclick="filterByType('Other',this)">◦ Other</button>
+</div>
+{% endif %}
+
+<!-- Cards Grid -->
+{% if entries %}
+<div class="remember-grid" id="remember-grid">
+  {% for e in entries %}
+  {% set etype = e.type if e.type is defined and e.type else 'Other' %}
+  <div class="remember-card remember-card-clickable {% if e.status=='Archived' %}rem-archived{% endif %}"
+       data-title="{{ e.title|lower }}"
+       data-status="{{ e.status }}"
+       data-type="{{ etype }}"
+       onclick="openDetailModal({{ e.id }})">
+    <div class="remember-card-top">
+      <div class="remember-meta">
+        <span class="rem-type-badge rem-type-{{ etype|lower }}">{{ type_icon(etype) }} {{ etype }}</span>
+        {% if e.status == 'Archived' %}<span class="status-badge status-not-started">Archived</span>{% endif %}
+      </div>
+      <div class="remember-actions" onclick="event.stopPropagation()">
+        <button class="icon-btn" onclick="openEditModal({{ e.id }})" title="Edit">✏</button>
+        <form method="POST" action="/archive-remember/{{ e.id }}" style="display:inline">
+          <button class="icon-btn" type="submit" title="{% if e.status=='Active' %}Archive{% else %}Restore{% endif %}">
+            {% if e.status=='Active' %}📦{% else %}♻{% endif %}
+          </button>
+        </form>
+        <form method="POST" action="/delete-remember/{{ e.id }}" style="display:inline"
+              onsubmit="return confirm('Delete this entry?')">
+          <button class="icon-btn icon-btn-danger" type="submit">✕</button>
+        </form>
+      </div>
+    </div>
+    <div class="remember-title">{{ e.title }}</div>
+    {% if e.description %}
+    <div class="remember-desc text-muted">{{ e.description[:120] }}{% if e.description|length > 120 %}…{% endif %}</div>
+    {% endif %}
+    <div class="remember-footer">
+      {% if e.created_at %}<span class="rem-created">{{ e.created_at[:10] }}</span>{% endif %}
+      {% for tag in e.tags[:3] %}<span class="rem-tag">{{ tag }}</span>{% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+{% else %}
+<div class="empty-state">
+  <div class="empty-icon">🧠</div>
+  <div class="empty-title">Nothing to remember yet</div>
+  <div class="empty-sub">Capture important ideas, links, people, and places</div>
+  <button class="btn-primary" onclick="openModal('modal-add-remember')">+ Add First Entry</button>
+</div>
+{% endif %}
+
+<!-- ─── Detail Overlay ──────────────────────────────────────────── -->
+<div id="modal-detail-overlay" class="rem-detail-overlay hidden" onclick="closeDetailModal()">
+  <div class="rem-detail-panel" onclick="event.stopPropagation()">
+    <button class="rem-detail-close" onclick="closeDetailModal()">✕</button>
+    <div id="rem-detail-content"></div>
+  </div>
+</div>
+
+<!-- ─── Edit Modals ────────────────────────────────────────────── -->
+{% for e in entries %}
+{% set etype = e.type if e.type is defined and e.type else 'Other' %}
+<div id="modal-edit-rem-{{ e.id }}" class="modal-content hidden">
+  <div class="modal-header"><h3>Edit Entry</h3></div>
+  <form method="POST" action="/edit-remember/{{ e.id }}">
+    <div class="form-group"><label>Title</label>
+      <input type="text" name="title" value="{{ e.title }}" required class="form-input"/></div>
+    <div class="form-row">
+      <div class="form-group"><label>Type</label>
+        <select name="type" class="form-input">
+          {% for t in ['Link','Person','Place','Notes','Other'] %}
+          <option {% if etype==t %}selected{% endif %}>{{ t }}</option>
+          {% endfor %}
+        </select></div>
+      <div class="form-group"><label>Tags (comma-separated)</label>
+        <input type="text" name="tags" value="{{ e.tags|join(', ') }}" class="form-input"/></div>
+    </div>
+    <div class="form-group"><label>Description / Details</label>
+      <textarea name="description" class="form-input" rows="3">{{ e.description }}</textarea></div>
+    <div class="form-group"><label>Status</label>
+      <select name="status" class="form-input">
+        <option {% if e.status=='Active' %}selected{% endif %}>Active</option>
+        <option {% if e.status=='Archived' %}selected{% endif %}>Archived</option>
+      </select></div>
+    <div class="form-actions">
+      <button type="button" class="btn-secondary" onclick="closeActiveModal()">Cancel</button>
+      <button type="submit" class="btn-primary">Save</button>
+    </div>
+  </form>
+</div>
+{% endfor %}
+
+<!-- ─── Add Modal ──────────────────────────────────────────────── -->
+<div id="modal-add-remember" class="modal-content hidden">
+  <div class="modal-header"><h3>Add to Remember</h3></div>
+  <form method="POST" action="/add-remember">
+    <div class="form-group"><label>Title *</label>
+      <input type="text" name="title" required class="form-input" placeholder="What to remember?"/></div>
+    <div class="form-row">
+      <div class="form-group"><label>Type</label>
+        <select name="type" class="form-input">
+          <option value="Link">🔗 Link</option>
+          <option value="Person">👤 Person</option>
+          <option value="Place">📍 Place</option>
+          <option value="Notes" selected>📝 Notes</option>
+          <option value="Other">◦ Other</option>
+        </select></div>
+      <div class="form-group"><label>Tags</label>
+        <input type="text" name="tags" class="form-input" placeholder="tag1, tag2…"/></div>
+    </div>
+    <div class="form-group"><label>Description / Details</label>
+      <textarea name="description" class="form-input" rows="3" placeholder="Add notes, URLs, or any details…"></textarea></div>
+    <div class="form-actions">
+      <button type="button" class="btn-secondary" onclick="closeActiveModal()">Cancel</button>
+      <button type="submit" class="btn-primary">Save</button>
+    </div>
+  </form>
+</div>
+
+<!-- Entry data for JS detail modal -->
+<script>
+const REM_ENTRIES = {
+  {% for e in entries %}
+  {% set etype = e.type if e.type is defined and e.type else 'Other' %}
+  {{ e.id }}: {
+    id: {{ e.id }},
+    title: {{ e.title | tojson }},
+    type: {{ etype | tojson }},
+    description: {{ (e.description or '') | tojson }},
+    tags: {{ e.tags | tojson }},
+    status: {{ e.status | tojson }},
+    created_at: {{ (e.created_at or '') | tojson }},
+  },
+  {% endfor %}
+};
+</script>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const TYPE_ICONS  = { Link:'🔗', Person:'👤', Place:'📍', Notes:'📝', Other:'◦' };
+const TYPE_COLORS = { Link:'#0284c7', Person:'#7c3aed', Place:'#059669', Notes:'#d97706', Other:'#9b9189' };
+
+// ─── Filters ──────────────────────────────────────────────────
+let _status = 'all', _type = 'all', _q = '';
+function applyFilters() {
+  document.querySelectorAll('.remember-card').forEach(c => {
+    const ok = (c.dataset.title || '').includes(_q.toLowerCase())
+            && (_status === 'all' || c.dataset.status === _status)
+            && (_type   === 'all' || c.dataset.type   === _type);
+    c.style.display = ok ? '' : 'none';
+  });
+}
+function filterRemember(q)       { _q = q; applyFilters(); }
+function filterByStatus(s, btn)  {
+  document.querySelectorAll('.filter-pill').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active'); _status = s; applyFilters();
+}
+function filterByType(t, btn)    {
+  document.querySelectorAll('.rem-type-pill').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active'); _type = t; applyFilters();
+}
+
+// ─── Edit ─────────────────────────────────────────────────────
+function openEditModal(id) { openModal('modal-edit-rem-' + id); }
+
+// ─── Detail modal ─────────────────────────────────────────────
+function openDetailModal(id) {
+  const e = REM_ENTRIES[id];
+  if (!e) return;
+  const icon  = TYPE_ICONS[e.type]  || '◦';
+  const color = TYPE_COLORS[e.type] || '#9b9189';
+
+  function linkify(text) {
+    if (!text) return '<span class="rem-detail-empty">No description added.</span>';
+    const safe = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const linked = safe.replace(/(https?:\/\/[^\s<>"&]+)/g,
+      '<a class="rem-detail-url" href="$1" target="_blank" rel="noopener">$1 ↗</a>');
+    return linked.replace(/\n/g,'<br>');
+  }
+
+  const tagsHtml = (e.tags||[]).length
+    ? `<div class="rem-detail-tags">${e.tags.map(t=>`<span class="rem-tag">${esc(t)}</span>`).join('')}</div>` : '';
+
+  let createdStr = '';
+  if (e.created_at) {
+    try {
+      createdStr = new Date(e.created_at).toLocaleString('en-IN',
+        {year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+    } catch(_) { createdStr = e.created_at.slice(0,16); }
+  }
+
+  document.getElementById('rem-detail-content').innerHTML = `
+    <div class="rem-detail-type-row">
+      <span class="rem-detail-type-badge" style="background:${color}1a;color:${color};border-color:${color}44">
+        ${icon} ${esc(e.type)}
+      </span>
+      ${e.status==='Archived' ? '<span class="status-badge status-not-started ml-6">Archived</span>' : ''}
+    </div>
+    <h2 class="rem-detail-title">${esc(e.title)}</h2>
+    <div class="rem-detail-desc">${linkify(e.description)}</div>
+    ${tagsHtml}
+    ${createdStr ? `<div class="rem-detail-meta">📅 Added ${createdStr}</div>` : ''}
+    <div class="rem-detail-actions">
+      <button class="btn-secondary" onclick="closeDetailModal();openEditModal(${e.id})">✏ Edit</button>
+    </div>
+  `;
+
+  document.getElementById('modal-detail-overlay').classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeDetailModal() {
+  document.getElementById('modal-detail-overlay').classList.add('hidden');
+  document.body.style.overflow = '';
+}
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+document.addEventListener('keydown', ev => { if (ev.key === 'Escape') closeDetailModal(); });
+</script>
+{% endblock %}

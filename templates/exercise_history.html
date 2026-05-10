@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Exercise History{% endblock %}
+{% block topbar_title %}Exercise History{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <a href="/exercise" class="back-link">← Exercise</a>
+    <h1 class="page-title">Exercise History</h1>
+    <p class="page-sub">Last 30 days of workout data</p>
+  </div>
+</div>
+
+{% if history|selectattr('workout_count')|list %}
+<div class="card mb-20">
+  <div class="card-header">
+    <div class="card-icon ci-coral">📊</div>
+    <div class="card-title">30-Day Activity</div>
+  </div>
+  <div class="exercise-history-grid">
+    {% for day in history %}
+    <a href="/date-details/{{ day.date }}"
+       class="ex-history-cell {% if day.workout_count > 0 %}ex-done{% else %}ex-miss{% endif %}"
+       title="{{ day.date }}{% if day.workout_count %}: {{ day.workout_count }} workouts, {{ day.total_mins }}m{% endif %}">
+      <div class="ex-hist-day">{{ day.date[8:] }}</div>
+      {% if day.workout_count %}<div class="ex-hist-count">{{ day.workout_count }}</div>{% endif %}
+    </a>
+    {% endfor %}
+  </div>
+  <div class="history-legend mt-8">
+    <span class="history-cell-sm history-done">Done</span>
+    <span class="history-cell-sm history-miss" style="margin-left:8px">Rest</span>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <div class="card-icon ci-coral">🏋️</div>
+    <div class="card-title">Daily Breakdown</div>
+  </div>
+  {% for day in history|reverse %}
+  {% if day.workout_count > 0 %}
+  <div class="ex-day-block">
+    <div class="ex-day-label">{{ day.date }}</div>
+    <div class="ex-day-logs">
+      {% for log in day.logs %}
+      {% set w = workouts.get(log.workout_id) %}
+      <div class="ex-log-row">
+        <span class="ex-log-name">{{ w.name if w else 'Unknown' }}</span>
+        <div class="exercise-log-pills">
+          {% if log.sets %}<span class="ex-log-pill">{{ log.sets }}s</span>{% endif %}
+          {% if log.reps %}<span class="ex-log-pill">{{ log.reps }}r</span>{% endif %}
+          {% if log.weight %}<span class="ex-log-pill">{{ log.weight }}kg</span>{% endif %}
+          {% if log.distance %}<span class="ex-log-pill">{{ log.distance }}</span>{% endif %}
+          {% if log.duration_minutes %}<span class="ex-log-pill">{{ log.duration_minutes }}m</span>{% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    <div class="ex-day-total">Total: {{ day.total_mins }}m</div>
+  </div>
+  {% endif %}
+  {% endfor %}
+</div>
+{% else %}
+<div class="empty-state">
+  <div class="empty-icon">📊</div>
+  <div class="empty-title">No exercise history yet</div>
+  <div class="empty-sub">Log workouts on the Exercise page to see history here</div>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,349 @@
+{% extends "base.html" %}
+{% block title %}Focus Timer{% endblock %}
+{% block topbar_title %}Focus Timer{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Focus Timer</h1>
+    <p class="page-sub">Pomodoro · Deep Work · Custom Sessions</p>
+  </div>
+</div>
+
+<!-- Today Stats -->
+<div class="cards-grid cards-grid-4 mb-20">
+  <div class="stat-card" style="--stat-color:var(--coral)">
+    <div class="stat-card-bg-icon">⏱</div>
+    <div class="stat-card-label">Focus Today</div>
+    <div class="stat-card-num">{{ total_mins_today }}<span class="denom">m</span></div>
+  </div>
+  <div class="stat-card" style="--stat-color:var(--indigo)">
+    <div class="stat-card-bg-icon">📅</div>
+    <div class="stat-card-label">Sessions Today</div>
+    <div class="stat-card-num">{{ today_sessions|length }}</div>
+  </div>
+  <div class="stat-card" style="--stat-color:var(--emerald)">
+    <div class="stat-card-bg-icon">🔥</div>
+    <div class="stat-card-label">Focus Streak</div>
+    <div class="stat-card-num">{{ streak }}<span class="denom">d</span></div>
+  </div>
+  <div class="stat-card" style="--stat-color:var(--violet)">
+    <div class="stat-card-bg-icon">📊</div>
+    <div class="stat-card-label">This Week</div>
+    <div class="stat-card-num">{{ total_mins_week }}<span class="denom">m</span></div>
+  </div>
+</div>
+
+<div class="two-col-grid">
+  <!-- Timer Widget -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-icon ci-coral">⏱</div>
+      <div class="card-title">Timer</div>
+    </div>
+
+    <!-- Mode Tabs -->
+    <div class="focus-mode-tabs">
+      <button class="focus-mode-btn active" onclick="setMode('pomodoro',this)">🍅 Pomodoro</button>
+      <button class="focus-mode-btn" onclick="setMode('deepwork',this)">🧠 Deep Work</button>
+      <button class="focus-mode-btn" onclick="setMode('custom',this)">⚙ Custom</button>
+    </div>
+
+    <!-- Session Setup -->
+    <div class="focus-setup" id="focus-setup">
+      <div class="form-group" style="margin-bottom:12px">
+        <label>Session Label</label>
+        <input type="text" id="session-label" class="form-input" placeholder="e.g. DBMS Revision, Coding, Reading…"/>
+      </div>
+      <div class="form-group" style="margin-bottom:12px">
+        <label>Category</label>
+        <select id="session-category" class="form-input">
+          <option>Study</option><option>Coding</option><option>Reading</option>
+          <option>Revision</option><option>Project Work</option>
+          <option>DSA</option><option>DBMS</option><option>Resume</option><option>Other</option>
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom:12px">
+        <label>Attach to Subject (optional)</label>
+        <input type="text" id="session-subject" class="form-input" placeholder="e.g. DBMS, TOC, DSA…"/>
+      </div>
+      <!-- Custom duration (hidden for pomodoro) -->
+      <div id="custom-duration-row" style="display:none">
+        <div class="form-row">
+          <div class="form-group">
+            <label>Focus (min)</label>
+            <input type="number" id="custom-focus" class="form-input" value="45" min="1" max="180"/>
+          </div>
+          <div class="form-group">
+            <label>Break (min)</label>
+            <input type="number" id="custom-break" class="form-input" value="10" min="1" max="60"/>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pomodoro Ring -->
+    <div class="pom-ring-wrap" id="timer-ring-wrap">
+      <svg class="pom-svg" viewBox="0 0 100 100">
+        <circle cx="50" cy="50" r="44" class="pom-bg"/>
+        <circle cx="50" cy="50" r="44" class="pom-fill" id="pom-fill-circle"
+                stroke-dasharray="0 276.5" stroke-dashoffset="-69.1"/>
+      </svg>
+      <div class="pom-time" id="pom-time">25:00</div>
+    </div>
+
+    <!-- Phase label -->
+    <div style="text-align:center;margin-bottom:10px">
+      <span id="phase-label" style="font-size:12px;font-weight:700;color:var(--text3)">READY TO FOCUS</span>
+      <span id="session-counter" style="font-size:12px;color:var(--text3);margin-left:10px"></span>
+    </div>
+    <div class="focus-pause-count" id="pause-display" style="display:none">
+      ⚡ Interruptions: <span id="pause-count">0</span>
+    </div>
+
+    <!-- Controls -->
+    <div class="pom-btns">
+      <button class="pom-preset-btn" onclick="presetTimer(25)" title="25 min">25m</button>
+      <button class="pom-preset-btn" onclick="presetTimer(45)" title="45 min">45m</button>
+      <button class="pom-preset-btn" onclick="presetTimer(90)" title="90 min">90m</button>
+    </div>
+    <div class="pom-btns" style="margin-top:10px">
+      <button class="pom-btn" id="start-btn" onclick="startFocus()">▶ Start</button>
+      <button class="pom-btn" id="pause-btn" onclick="pauseFocus()" style="display:none;background:var(--amber)">⏸ Pause</button>
+      <button class="pom-btn" onclick="resetFocus()" style="background:var(--bg4);color:var(--text2)">↺ Reset</button>
+    </div>
+  </div>
+
+  <!-- Today's Sessions + Recent -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-icon ci-indigo">📋</div>
+      <div class="card-title">Today's Sessions</div>
+    </div>
+
+    {% if today_sessions %}
+    <div id="sessions-list">
+      {% for s in today_sessions %}
+      <div class="focus-session-row">
+        <div class="focus-session-info">
+          <div class="focus-session-label">{{ s.label }}</div>
+          <div class="focus-session-meta">
+            {{ s.category }} · {{ s.duration_minutes }}m ·
+            <span class="{% if s.completed %}text-success{% else %}text-muted{% endif %}">
+              {% if s.completed %}✓ Completed{% else %}⚠ Incomplete{% endif %}
+            </span>
+          </div>
+        </div>
+        <form method="POST" action="/delete-focus-session/{{ s.id }}" style="display:inline">
+          <button class="icon-btn icon-btn-danger btn-xs" type="submit">✕</button>
+        </form>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-sm" id="no-sessions-msg">No sessions yet today. Start your first focus session!</div>
+    {% endif %}
+
+    {% if recent %}
+    <div class="card-divider"></div>
+    <div class="card-subtitle">Recent Sessions</div>
+    {% for s in recent[:5] %}
+    <div class="focus-session-row">
+      <div class="focus-session-info">
+        <div class="focus-session-label">{{ s.label }}</div>
+        <div class="focus-session-meta">{{ s.date }} · {{ s.category }} · {{ s.duration_minutes }}m</div>
+      </div>
+    </div>
+    {% endfor %}
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ─── Timer State ─────────────────────────────
+let timerInterval = null;
+let timerRunning  = false;
+let timerMode     = 'pomodoro';
+let totalSeconds  = 25 * 60;
+let remainSeconds = 25 * 60;
+let pomodoroCount = 0;
+let isBreak       = false;
+let sessionStart  = null;
+let pauseCount    = 0;
+let pauseStart    = null;
+
+const CIRC = 276.5; // 2*pi*44
+
+function setMode(mode, btn) {
+  document.querySelectorAll('.focus-mode-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  timerMode = mode;
+  const row = document.getElementById('custom-duration-row');
+  row.style.display = mode === 'custom' ? '' : 'none';
+  if (!timerRunning) {
+    if (mode === 'pomodoro') setTimerDisplay(25 * 60);
+    else if (mode === 'deepwork') setTimerDisplay(90 * 60);
+    else setTimerDisplay(parseInt(document.getElementById('custom-focus').value) * 60);
+  }
+}
+
+function presetTimer(mins) {
+  if (timerRunning) return;
+  setTimerDisplay(mins * 60);
+  totalSeconds = mins * 60;
+}
+
+function setTimerDisplay(secs) {
+  remainSeconds = secs;
+  const m = Math.floor(secs / 60), s = secs % 60;
+  document.getElementById('pom-time').textContent = String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+  updateRing(0);
+}
+
+function updateRing(elapsed) {
+  const pct  = elapsed / totalSeconds;
+  const fill = document.getElementById('pom-fill-circle');
+  fill.setAttribute('stroke-dasharray', (pct * CIRC).toFixed(1) + ' ' + CIRC);
+}
+
+function startFocus() {
+  if (timerRunning) return;
+  const label    = document.getElementById('session-label').value || 'Focus Session';
+  const category = document.getElementById('session-category').value;
+
+  if (timerMode === 'custom') {
+    totalSeconds  = parseInt(document.getElementById('custom-focus').value) * 60;
+    remainSeconds = totalSeconds;
+  } else if (timerMode === 'deepwork') {
+    totalSeconds = remainSeconds = 90 * 60;
+  } else {
+    totalSeconds = remainSeconds = isBreak ? (pomodoroCount % 4 === 0 ? 20*60 : 5*60) : 25*60;
+  }
+
+  timerRunning = true;
+  sessionStart = new Date().toISOString();
+  document.getElementById('start-btn').style.display = 'none';
+  document.getElementById('pause-btn').style.display = '';
+  document.getElementById('phase-label').textContent = isBreak ? '☕ BREAK TIME' : '🎯 FOCUSING';
+
+  timerInterval = setInterval(() => {
+    remainSeconds--;
+    const elapsed = totalSeconds - remainSeconds;
+    const m = Math.floor(remainSeconds/60), s = remainSeconds%60;
+    document.getElementById('pom-time').textContent = String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
+    updateRing(elapsed);
+
+    if (remainSeconds <= 0) {
+      clearInterval(timerInterval);
+      timerRunning = false;
+      onTimerComplete(label, category);
+    }
+  }, 1000);
+}
+
+function pauseFocus() {
+  if (!timerRunning) {
+    // Resume
+    document.getElementById('pause-btn').textContent = '⏸ Pause';
+    startFocus();
+  } else {
+    clearInterval(timerInterval);
+    timerRunning = false;
+    pauseCount++;
+    const pd = document.getElementById('pause-display');
+    const pc = document.getElementById('pause-count');
+    if (pd) pd.style.display = '';
+    if (pc) pc.textContent = pauseCount;
+    document.getElementById('pause-btn').textContent = '▶ Resume';
+  }
+}
+
+function resetFocus() {
+  clearInterval(timerInterval);
+  timerRunning = false;
+  isBreak = false;
+  pomodoroCount = 0;
+  const defMins = timerMode === 'deepwork' ? 90 : timerMode === 'custom'
+    ? parseInt(document.getElementById('custom-focus').value) : 25;
+  setTimerDisplay(defMins * 60);
+  totalSeconds = defMins * 60;
+  document.getElementById('start-btn').style.display = '';
+  document.getElementById('pause-btn').style.display = 'none';
+  document.getElementById('phase-label').textContent = 'READY TO FOCUS';
+  document.getElementById('session-counter').textContent = '';
+  pauseCount = 0;
+  const pd = document.getElementById('pause-display');
+  if (pd) pd.style.display = 'none';
+}
+
+function onTimerComplete(label, category) {
+  const durationMins = Math.round((totalSeconds - remainSeconds + totalSeconds) / 60);
+  document.getElementById('phase-label').textContent = isBreak ? '✅ Break Done!' : '✅ Session Complete!';
+  document.getElementById('start-btn').style.display = '';
+  document.getElementById('pause-btn').style.display = 'none';
+
+  if (!isBreak) {
+    pomodoroCount++;
+    document.getElementById('session-counter').textContent = '🍅 ' + pomodoroCount;
+    saveSession(label, category, totalSeconds / 60);
+    showToast('Focus session complete! 🎉 Take a break.', 'success');
+    if (timerMode === 'pomodoro') {
+      isBreak = true;
+      const breakMins = pomodoroCount % 4 === 0 ? 20 : 5;
+      setTimerDisplay(breakMins * 60);
+      totalSeconds = breakMins * 60;
+      document.getElementById('phase-label').textContent = '☕ Break time! ' + breakMins + 'm';
+    }
+  } else {
+    isBreak = false;
+    setTimerDisplay(25 * 60);
+    totalSeconds = 25 * 60;
+    document.getElementById('phase-label').textContent = 'READY FOR SESSION ' + (pomodoroCount + 1);
+  }
+
+  // Browser notification
+  if (Notification.permission === 'granted') {
+    new Notification(isBreak ? 'Break over!' : 'Focus session done! 🎯', {
+      body: label + ' — ' + (totalSeconds/60) + ' minutes'
+    });
+  }
+}
+
+function saveSession(label, category, durationMins) {
+  const subjectField = document.getElementById('session-subject');
+  const subject = subjectField ? subjectField.value.trim() : '';
+  const fd = new FormData();
+  fd.append('label', label);
+  fd.append('category', category);
+  fd.append('subject', subject);
+  fd.append('pause_count', pauseCount);
+  fd.append('duration_minutes', Math.round(durationMins));
+  fd.append('mode', timerMode);
+  fd.append('completed', 'true');
+  fd.append('started_at', sessionStart || new Date().toISOString());
+  fd.append('date', new Date().toISOString().split('T')[0]);
+  fetch('/save-focus-session', {method:'POST', body:fd})
+    .then(r => r.json())
+    .then(d => {
+      // Append to sessions list without reload
+      const list = document.getElementById('sessions-list') || (() => {
+        const msg = document.getElementById('no-sessions-msg');
+        const div = document.createElement('div'); div.id='sessions-list';
+        if(msg) msg.replaceWith(div); return div;
+      })();
+      const row = document.createElement('div');
+      row.className = 'focus-session-row';
+      row.innerHTML = `<div class="focus-session-info">
+        <div class="focus-session-label">${label}</div>
+        <div class="focus-session-meta">${category} · ${Math.round(durationMins)}m · <span class="text-success">✓ Completed</span></div>
+      </div>`;
+      list.appendChild(row);
+    });
+}
+
+// Init
+if (Notification.permission === 'default') Notification.requestPermission();
+</script>
+{% endblock %}

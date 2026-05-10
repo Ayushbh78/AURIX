@@ -1,0 +1,211 @@
+{% extends "base.html" %}
+{% block title %}{{ month_name }} {{ req_year }} Report{% endblock %}
+{% block topbar_title %}Monthly Tracker{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Monthly Tracker</h1>
+    <p class="page-sub">Deep dive into any month's data</p>
+  </div>
+</div>
+
+<!-- Month Picker -->
+<div class="card mb-24">
+  <div class="month-picker-row">
+    <span class="month-picker-label">📅 Select Month:</span>
+    <form method="GET" action="/monthly-report" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <select name="month" class="month-select">
+        {% for i in range(1,13) %}
+        <option value="{{ i }}" {% if i == req_month %}selected{% endif %}>
+          {% set mnames = ['','January','February','March','April','May','June','July','August','September','October','November','December'] %}
+          {{ mnames[i] }}
+        </option>
+        {% endfor %}
+      </select>
+      <select name="year" class="month-select">
+        {% for y in range(2023, 2027) %}
+        <option value="{{ y }}" {% if y == req_year %}selected{% endif %}>{{ y }}</option>
+        {% endfor %}
+      </select>
+      <button type="submit" class="btn-primary btn-sm">View Report →</button>
+    </form>
+  </div>
+</div>
+
+<!-- Month Title -->
+<div class="month-report-title mb-24">
+  <span class="month-report-name">{{ month_name }} {{ req_year }}</span>
+  <span class="month-report-sub">{{ days_in_month }}-day report · {{ productive_days }} productive days</span>
+</div>
+
+<!-- Summary Cards -->
+<div class="month-report-grid anim-stagger">
+  <div class="month-report-card" style="--card-color:var(--indigo)">
+    <div class="month-report-icon">📈</div>
+    <div class="month-report-num">{% if avg_score is not none %}{{ avg_score }}{% else %}—{% endif %}</div>
+    <div class="month-report-label">Avg Productivity Score</div>
+  </div>
+  <div class="month-report-card" style="--card-color:var(--emerald)">
+    <div class="month-report-icon">✅</div>
+    <div class="month-report-num">{{ total_habit_completions }}</div>
+    <div class="month-report-label">Total Habit Completions</div>
+  </div>
+  <div class="month-report-card" style="--card-color:var(--coral)">
+    <div class="month-report-icon">💸</div>
+    <div class="month-report-num">{{ currency }}{{ total_spend|int }}</div>
+    <div class="month-report-label">Total Spent</div>
+  </div>
+  <div class="month-report-card" style="--card-color:var(--violet)">
+    <div class="month-report-icon">📚</div>
+    <div class="month-report-num">{{ chapters_done_month }}</div>
+    <div class="month-report-label">Chapters Completed</div>
+  </div>
+  <div class="month-report-card" style="--card-color:var(--amber)">
+    <div class="month-report-icon">📋</div>
+    <div class="month-report-num">{{ tasks_done }}/{{ month_tasks|length }}</div>
+    <div class="month-report-label">Tasks Completed</div>
+  </div>
+  <div class="month-report-card" style="--card-color:var(--sky)">
+    <div class="month-report-icon">🌙</div>
+    <div class="month-report-num">{{ avg_sleep }}h</div>
+    <div class="month-report-label">Avg Sleep / Night</div>
+  </div>
+  <div class="month-report-card" style="--card-color:var(--rose)">
+    <div class="month-report-icon">🌟</div>
+    <div class="month-report-num">{{ productive_days }}</div>
+    <div class="month-report-label">Productive Days (≥70)</div>
+  </div>
+  <div class="month-report-card" style="--card-color:var(--indigo)">
+    <div class="month-report-icon">📝</div>
+    <div class="month-report-num">{{ month_notes_count }}</div>
+    <div class="month-report-label">Notes Written</div>
+  </div>
+</div>
+
+<!-- Daily Score Heatmap -->
+<div class="card mb-24">
+  <div class="card-header">
+    <div class="card-icon ci-indigo">📅</div>
+    <div class="card-title">Daily Productivity — {{ month_name }} {{ req_year }}</div>
+  </div>
+  <div class="daily-heatmap">
+    {% for s in daily_scores %}
+    <a href="/date-details/{{ s.date }}" class="heatmap-day
+      {% if s.score is not none and s.score >= 70 %}hm-high{% elif s.score is not none and s.score >= 40 %}hm-mid{% elif s.score is not none and s.score > 0 %}hm-low{% else %}hm-none{% endif %}"
+      title="{{ s.date }}: {% if s.score is not none %}{{ s.score }}%{% else %}no data{% endif %}">
+      <div class="hm-day-num">{{ s.day }}</div>
+      {% if s.score is not none and s.score > 0 %}<div class="hm-score">{{ s.score }}</div>{% endif %}
+    </a>
+    {% endfor %}
+  </div>
+  <div class="heatmap-legend">
+    <span class="hm-leg hm-none">0</span> No data
+    <span class="hm-leg hm-low">1–39</span> Low
+    <span class="hm-leg hm-mid">40–69</span> Average
+    <span class="hm-leg hm-high">70+</span> Productive
+  </div>
+</div>
+
+<!-- Two col: Spending + Best/Worst -->
+<div class="two-col-grid">
+  <!-- Spending Breakdown -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-icon ci-coral">💰</div>
+      <div class="card-title">Spending Breakdown</div>
+      <div class="card-badge">{{ currency }}{{ total_spend|int }}</div>
+    </div>
+    {% if cat_totals %}
+      {% set max_amt = cat_totals.values()|max %}
+      {% for cat, amt in cat_totals|dictsort(by='value', reverse=true) %}
+      <div class="cat-row">
+        <div class="cat-name">{{ cat }}</div>
+        <div class="cat-bar-wrap"><div class="cat-bar bar-spend" style="width:{{ (amt/max_amt*100)|int }}%"></div></div>
+        <div class="cat-amt">{{ currency }}{{ amt|int }}</div>
+      </div>
+      {% endfor %}
+      {% if budget > 0 %}
+      <div class="card-divider"></div>
+      <div class="budget-compare">
+        <span>Budget: {{ currency }}{{ budget|int }}</span>
+        <span class="{% if total_spend > budget %}text-danger{% else %}text-success{% endif %}">
+          {% if total_spend > budget %}⚠ Over by {{ currency }}{{ (total_spend - budget)|int }}
+          {% else %}✓ {{ currency }}{{ (budget - total_spend)|int }} saved{% endif %}
+        </span>
+      </div>
+      {% endif %}
+    {% else %}
+      <div class="empty-sm">No expenses this month</div>
+    {% endif %}
+  </div>
+
+  <!-- Highlights -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-icon ci-amber">🏆</div>
+      <div class="card-title">Month Highlights</div>
+    </div>
+    {% if best_day %}
+    <div class="highlight-item highlight-best">
+      <div class="highlight-icon">🌟</div>
+      <div class="highlight-info">
+        <div class="highlight-label">Best Day</div>
+        <div class="highlight-val"><a href="/date-details/{{ best_day.date }}">{{ best_day.date }}</a> — {{ best_day.score }}% score</div>
+      </div>
+    </div>
+    {% endif %}
+    {% if worst_day %}
+    <div class="highlight-item highlight-worst">
+      <div class="highlight-icon">⚡</div>
+      <div class="highlight-info">
+        <div class="highlight-label">Needs Improvement</div>
+        <div class="highlight-val"><a href="/date-details/{{ worst_day.date }}">{{ worst_day.date }}</a> — {{ worst_day.score }}% score</div>
+      </div>
+    </div>
+    {% endif %}
+    <div class="card-divider"></div>
+    <div class="card-subtitle">Weekly Breakdown</div>
+    {% for w in weeks %}
+    <div class="week-breakdown-row">
+      <span class="week-label">Week {{ w.week }}</span>
+      <div class="week-bar-wrap">
+        {% if w.avg is not none %}
+        <div class="week-bar {% if w.avg >= 70 %}bar-good{% elif w.avg >= 40 %}bar-med{% else %}bar-low{% endif %}"
+             style="width:{{ w.avg }}%"></div>
+        {% endif %}
+      </div>
+      <span class="week-score">{% if w.avg is not none %}{{ w.avg }}%{% else %}—{% endif %}</span>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- Daily Score Chart -->
+<div class="card mb-24">
+  <div class="card-header">
+    <div class="card-icon ci-indigo">📊</div>
+    <div class="card-title">Daily Score Trend — {{ month_name }}</div>
+  </div>
+  <div class="bar-chart-wrap bar-chart-tall" style="height:160px">
+    {% for s in daily_scores %}
+    <div class="bar-chart-col" style="min-width:0">
+      <div class="bar-chart-bar-wrap">
+        {% if s.score is not none and s.score > 0 %}
+        <div class="bar-chart-bar {% if s.score >= 70 %}bar-good{% elif s.score >= 40 %}bar-med{% else %}bar-low{% endif %}"
+             style="height:{{ s.score }}%"
+             data-tip="{{ s.date }}: {{ s.score }}%"></div>
+        {% else %}
+        <div class="bar-chart-bar" style="height:3%;background:var(--bg4)" data-tip="{{ s.date }}: no data"></div>
+        {% endif %}
+      </div>
+      {% if loop.index % 5 == 0 or loop.index == 1 %}
+      <div class="bar-chart-label">{{ s.day }}</div>
+      {% else %}
+      <div class="bar-chart-label"></div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}
