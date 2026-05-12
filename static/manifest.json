@@ -1,0 +1,20 @@
+{
+  "name": "AURIX — Personal OS",
+  "short_name": "AURIX",
+  "description": "Your personal productivity operating system",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#000002",
+  "theme_color": "#4338ca",
+  "orientation": "portrait-primary",
+  "icons": [
+    { "src": "/static/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" },
+    { "src": "/static/favicon.ico", "sizes": "64x64", "type": "image/x-icon" }
+  ],
+  "categories": ["productivity", "lifestyle"],
+  "shortcuts": [
+    { "name": "Habits", "url": "/habits", "description": "View your habits" },
+    { "name": "Insights", "url": "/insights", "description": "View insights" },
+    { "name": "Study", "url": "/study", "description": "Study tracker" }
+  ]
+}
