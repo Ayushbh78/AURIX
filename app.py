@@ -2449,4 +2449,8 @@ def goals():
     exam_map = {e['id']: e['name'] for e in data.get('exams', [])}
     all_exams = data.get('exams', [])
     # Auto-calc progress + study hours per goal
-    for 
+    for g in gs:
+        g['progress'] = _calc_goal_progress(data, g)
+        g['study_hours'] = _calc_goal_study_hours(data, g)
+        g['linked_exam_names'] = [exam_map.get(eid, '?') for eid in g.get('linked_exams', [])]
+    return render_template('goals.html', goals=gs, exam_map=exam_map, all_exams=all_exams)
