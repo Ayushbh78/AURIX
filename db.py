@@ -119,7 +119,6 @@ def _default():
         "workouts":             [],
         "workout_logs":         {},
         "focus_timer_sessions": [],
-        "ai_sessions":          [],
         "remember":             [],
         "active_sessions":      {"study": None, "sleep": None},
         "settings": {
@@ -470,14 +469,6 @@ def _sb_load() -> dict:
         "status":      "Archived" if r.get("archived") else "Active",
     } for r in rows]
 
-    # ── ai_sessions ───────────────────────────────────────────────────────
-    rows = sb.table("ai_sessions").select("*").order("id").execute().data
-    d["ai_sessions"] = [{
-        "user":   r.get("user_msg",""),
-        "bot":    r.get("bot_msg",""),
-        "ts":     r.get("ts",""),
-        "action": r.get("action"),
-    } for r in rows]
 
     # ── active_sessions ───────────────────────────────────────────────────
     rows = sb.table("active_sessions").select("*").eq("id",1).execute().data
@@ -532,7 +523,6 @@ def _sb_save(data: dict, prev: dict) -> None:
     _w_keyed(sb, "water_logs",      "log_date",   data, prev, _water_row)
     _w_keyed(sb, "journal_entries", "entry_date", data, prev, _journal_row)
     _w_notes(sb, data, prev)
-    _w_ai_sessions(sb, data, prev)
     _w_active(sb, data)
 
 
@@ -668,19 +658,6 @@ def _w_notes(sb, data, prev):
             if nid not in c_notes:
                 sb.table("notes").delete()\
                   .eq("note_date", day_n).eq("note_id", nid).execute()
-
-
-def _w_ai_sessions(sb, data, prev):
-    """AI sessions are append-only."""
-    sessions = data.get("ai_sessions", [])
-    old_len  = len(prev.get("ai_sessions", []))
-    for s in sessions[old_len:]:
-        sb.table("ai_sessions").insert({
-            "user_msg": s.get("user",""),
-            "bot_msg":  s.get("bot",""),
-            "ts":       s.get("ts",""),
-            "action":   s.get("action"),
-        }).execute()
 
 
 def _w_active(sb, data):
