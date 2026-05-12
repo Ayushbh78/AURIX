@@ -151,51 +151,6 @@
     <div class="modal" id="active-modal"></div>
   </div>
 
-  <!-- ══ AI FLOATING ASSISTANT ══ -->
-  <button class="ai-fab" id="ai-fab" onclick="toggleAIPanel()" title="AI Productivity Manager">
-    <span class="ai-fab-icon">🤖</span>
-  </button>
-
-  <div class="ai-panel" id="ai-panel">
-    <div class="ai-panel-header">
-      <div class="ai-panel-title">
-        <span>🤖</span>
-        <div>
-          <div class="ai-panel-name">AI Productivity Manager</div>
-          <div class="ai-panel-sub">English · Hindi · Voice</div>
-        </div>
-      </div>
-      <button class="ai-panel-close" onclick="toggleAIPanel()">✕</button>
-    </div>
-
-    <div class="ai-messages" id="ai-messages">
-      <div class="ai-msg ai-msg-bot">
-        <div class="ai-msg-bubble">
-          👋 Hi Ayush! I'm your AI Productivity Manager.<br><br>
-          I understand structured commands in English &amp; Hindi:<br><br>
-          <strong>Study:</strong><br>
-          • "Create GATE exam on 15 May"<br>
-          • "Add subject TOC"<br>
-          • "Add chapter SQL under DBMS"<br><br>
-          <strong>Exercise &amp; Spending:</strong><br>
-          • "I did 30 pushups" / "aaj 30 pushups kiye"<br>
-          • "I spent 200 on food" / "200 kharch kiye food pe"<br><br>
-          <strong>Productivity:</strong><br>
-          • "Add habit Morning Run"<br>
-          • "Today status"<br><br>
-          I'll confirm before saving anything. 🎯
-        </div>
-      </div>
-    </div>
-
-    <div class="ai-input-row">
-      <button class="ai-voice-btn" id="ai-voice-btn" onclick="toggleVoice()" title="Voice Input">🎤</button>
-      <input type="text" id="ai-input" class="ai-input" placeholder="Type or use voice…"
-             onkeydown="if(event.key==='Enter') sendAIMessage()"/>
-      <button class="ai-send-btn" onclick="sendAIMessage()">Send</button>
-    </div>
-  </div>
-
   <!-- ══ SESSION PANEL (full-page overlay) ══ -->
   <div id="session-panel-overlay" class="hidden" onclick="closeSessionPanel()"
        style="position:fixed;inset:0;z-index:8998;background:rgba(0,0,0,0.55)"></div>
