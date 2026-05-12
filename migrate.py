@@ -381,21 +381,6 @@ for r in remember:
         err(f"remember id={r.get('id')}", ex)
 report("remember", len(remember))
 
-# ── 18. AI sessions ───────────────────────────────────────────────────────────
-print("\n── AI Sessions")
-ai_sessions = data.get("ai_sessions", [])
-for s in ai_sessions:
-    try:
-        sb.table("ai_sessions").insert({
-            "user_msg": s.get("user", ""),
-            "bot_msg":  s.get("bot", ""),
-            "ts":       s.get("ts", ""),
-            "action":   s.get("action"),
-        }).execute()
-    except Exception as ex:
-        err(f"ai_session {s.get('ts')}", ex)
-report("ai_sessions", len(ai_sessions))
-
 # ── 19. Active sessions ───────────────────────────────────────────────────────
 print("\n── Active Sessions")
 try:
