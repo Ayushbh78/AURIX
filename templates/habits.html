@@ -1,0 +1,577 @@
+{% extends "base.html" %}
+{% block title %}Habits{% endblock %}
+{% block topbar_title %}Habits{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Daily Habits</h1>
+    {% if habits %}
+    <p class="page-sub">{{ completion_pct }}% complete today · {{ logs_today|length }}/{{ habits|length }} done</p>
+    {% else %}
+    <p class="page-sub">Track your daily habits and build consistency</p>
+    {% endif %}
+  </div>
+  <button class="btn-primary" onclick="openModal('modal-add-habit')">+ Add Habit</button>
+</div>
+
+{% if habits %}
+<div class="search-row mb-20">
+  <input type="text" id="habit-search" class="search-input" placeholder="🔍 Search habits…" oninput="filterHabits(this.value)"/>
+  <div class="filter-pills">
+    <button class="filter-pill active" onclick="filterByPriority('all',this)">All</button>
+    <button class="filter-pill" onclick="filterByPriority('High',this)">🔴 High</button>
+    <button class="filter-pill" onclick="filterByPriority('Medium',this)">🟡 Medium</button>
+    <button class="filter-pill" onclick="filterByPriority('Low',this)">🟢 Low</button>
+  </div>
+</div>
+
+<!-- Today Progress Bar -->
+<div class="card mb-20">
+  <div class="card-header">
+    <div class="card-icon" style="background:var(--indigo-soft)">✅</div>
+    <div class="card-title">Today's Progress</div>
+    <div class="card-badge" id="habit-pct-label">{{ completion_pct }}%</div>
+  </div>
+  <div class="big-progress-wrap">
+    <div class="big-progress-bar">
+      <div class="big-progress-fill" id="main-progress-fill" style="width:{{ completion_pct }}%"></div>
+    </div>
+    <div class="big-progress-label">{{ logs_today|length }}/<span id="habit-total">{{ habits|length }}</span></div>
+  </div>
+  <div class="habit-quick-grid">
+    {% for h in habits %}
+    <button class="habit-quick-pill {% if h.done_today %}habit-pill-done{% endif %}"
+            onclick="toggleHabit({{ h.id }})" data-hid="{{ h.id }}" data-priority="{{ h.priority }}">
+      <span class="pill-check">{% if h.done_today %}✓{% else %}○{% endif %}</span>
+      {{ h.name }}
+    </button>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- Habits Grid -->
+<div class="habits-grid" id="habits-grid">
+  {% for h in habits %}
+  <div class="habit-card {% if h.done_today %}habit-card-done{% endif %}"
+       id="hcard-{{ h.id }}"
+       data-name="{{ h.name|lower }}"
+       data-priority="{{ h.priority }}">
+    <div class="habit-card-color-bar" style="background:{{ h.color }}"></div>
+
+    <div class="habit-card-top">
+      <div class="habit-card-info">
+        <div class="habit-name">{{ h.name }}</div>
+        <div class="habit-meta">{{ h.category }} · {{ h.priority }} · {{ h.frequency }}</div>
+      </div>
+      <div class="habit-card-actions">
+        <button class="icon-btn" onclick="openModal('modal-edit-habit-{{ h.id }}')" title="Edit">✏</button>
+        <form method="POST" action="/delete-habit/{{ h.id }}" style="display:inline"
+              onsubmit="return confirm('Delete this habit?')">
+          <button class="icon-btn icon-btn-danger" type="submit" title="Delete">✕</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="habit-stats-row">
+      <div class="habit-stat">
+        <div class="habit-stat-num">🔥{{ h.streak }}</div>
+        <div class="habit-stat-label">Streak</div>
+      </div>
+      <div class="habit-stat">
+        <div class="habit-stat-num">{{ h.week_count }}/7</div>
+        <div class="habit-stat-label">This Week</div>
+      </div>
+      <div class="habit-stat">
+        <div class="habit-stat-num">{{ h.week_pct }}%</div>
+        <div class="habit-stat-label">Rate</div>
+      </div>
+    </div>
+
+    {% if h.subtask_total > 0 %}
+    <div class="habit-subtask-summary">
+      <div class="habit-subtask-bar-wrap">
+        <div class="habit-subtask-bar" style="width:{{ h.subtask_pct }}%"></div>
+      </div>
+      <div class="habit-subtask-label">{{ h.subtask_done }}/{{ h.subtask_total }} tasks · {{ h.subtask_pct }}%</div>
+      {% if h.incomplete_tasks %}
+      <div class="habit-incomplete-hint">⚠ Pending: {{ h.incomplete_tasks[:2]|join(', ') }}{% if h.incomplete_tasks|length > 2 %} +{{ h.incomplete_tasks|length - 2 }}{% endif %}</div>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    <div class="habit-card-footer">
+      <div class="habit-progress-bar">
+        <div class="habit-progress-fill" style="width:{{ h.week_pct }}%; background:{{ h.color }}"></div>
+      </div>
+      <!-- THREE ACTION BUTTONS: Open | Add Reminder | Mark Done -->
+      <div class="habit-footer-btns">
+        <a href="/habit/{{ h.id }}" class="btn-secondary btn-sm" onclick="sessionStorage.setItem('aurix_splash_done','1')">Open →</a>
+        <button class="btn-reminder btn-sm" onclick="openQuickReminder({{ h.id }}, '{{ h.name|replace("'", "\\'") }}')" title="Set reminder">🔔</button>
+        <button class="habit-toggle-btn {% if h.done_today %}habit-toggle-done{% endif %}"
+                onclick="toggleHabit({{ h.id }})" data-hid="{{ h.id }}">
+          {% if h.done_today %}✓ Done{% else %}Mark Done{% endif %}
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit Modal -->
+  <div id="modal-edit-habit-{{ h.id }}" class="modal-content hidden">
+    <div class="modal-header"><h3>Edit Habit</h3></div>
+    <form method="POST" action="/edit-habit/{{ h.id }}">
+      <div class="form-group"><label>Habit Name</label>
+        <input type="text" name="name" value="{{ h.name }}" required class="form-input"/></div>
+      <div class="form-row">
+        <div class="form-group"><label>Category</label>
+          <input type="text" name="category" value="{{ h.category }}" class="form-input"/></div>
+        <div class="form-group"><label>Priority</label>
+          <select name="priority" class="form-input">
+            {% for p in ['High','Medium','Low'] %}
+            <option {% if h.priority==p %}selected{% endif %}>{{ p }}</option>{% endfor %}
+          </select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Frequency</label>
+          <select name="frequency" class="form-input">
+            {% for f in ['Daily','Weekdays','Weekends','3x/week'] %}
+            <option {% if h.frequency==f %}selected{% endif %}>{{ f }}</option>{% endfor %}
+          </select></div>
+        <div class="form-group"><label>Color</label>
+          <input type="color" name="color" value="{{ h.color }}" class="form-input" style="height:44px"/></div>
+      </div>
+      <div class="form-group"><label>Notes</label>
+        <textarea name="notes" class="form-input" rows="2">{{ h.notes }}</textarea></div>
+      <div class="form-actions">
+        <button type="button" class="btn-secondary" onclick="closeActiveModal()">Cancel</button>
+        <button type="submit" class="btn-primary">Save Changes</button>
+      </div>
+    </form>
+  </div>
+  {% endfor %}
+</div>
+
+{% else %}
+<div class="empty-state">
+  <div class="empty-icon">✅</div>
+  <div class="empty-title">No habits yet</div>
+  <div class="empty-sub">Add your first habit to start building consistency</div>
+  <button class="btn-primary" onclick="openModal('modal-add-habit')">+ Add Your First Habit</button>
+</div>
+{% endif %}
+
+<!-- Add Habit Modal -->
+<div id="modal-add-habit" class="modal-content hidden">
+  <div class="modal-header"><h3>Add New Habit</h3><p>Click "Open" on the habit card to add sub-tasks and log time</p></div>
+  <form method="POST" action="/add-habit">
+    <div class="form-group"><label>Habit Name</label>
+      <input type="text" name="name" required class="form-input" placeholder="e.g. Morning Workout, Study DSA, Reading…"/></div>
+    <div class="form-row">
+      <div class="form-group"><label>Category</label>
+        <input type="text" name="category" class="form-input" placeholder="Health, Study, Skills…"/></div>
+      <div class="form-group"><label>Priority</label>
+        <select name="priority" class="form-input">
+          <option>High</option><option selected>Medium</option><option>Low</option>
+        </select></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Frequency</label>
+        <select name="frequency" class="form-input">
+          <option>Daily</option><option>Weekdays</option><option>Weekends</option><option>3x/week</option>
+        </select></div>
+      <div class="form-group"><label>Color</label>
+        <input type="color" name="color" value="#4338ca" class="form-input" style="height:44px"/></div>
+    </div>
+    <div class="form-group"><label>Notes (optional)</label>
+      <textarea name="notes" class="form-input" rows="2" placeholder="Goals, reminders…"></textarea></div>
+    <div class="form-actions">
+      <button type="button" class="btn-secondary" onclick="closeActiveModal()">Cancel</button>
+      <button type="submit" class="btn-primary">Add Habit</button>
+    </div>
+  </form>
+</div>
+
+<!-- ══ QUICK REMINDER MODAL (standalone fixed overlay, NOT inside modal system) ══ -->
+<div id="quick-reminder-overlay" aria-hidden="true" style="
+  display:none; position:fixed; inset:0; z-index:10000;
+  background:rgba(0,0,0,0.55); backdrop-filter:blur(6px);
+  align-items:center; justify-content:center; padding:16px;">
+  <div id="quick-reminder-box" role="dialog" aria-modal="true" style="
+    background:var(--surface); border:1.5px solid var(--border);
+    border-radius:var(--radius); box-shadow:0 24px 60px rgba(0,0,0,0.45);
+    width:min(460px,100%); max-height:90vh; overflow-y:auto;
+    animation:qrSlideIn .22s cubic-bezier(.34,1.56,.64,1);">
+
+    <!-- Header -->
+    <div style="display:flex;align-items:center;justify-content:space-between;
+      padding:18px 22px 14px;border-bottom:1px solid var(--border);
+      background:var(--bg3);border-radius:var(--radius) var(--radius) 0 0;position:sticky;top:0;z-index:1">
+      <div>
+        <div style="font-size:15px;font-weight:800;color:var(--text)">🔔 Add Reminder</div>
+        <div style="font-size:12px;color:var(--text3);font-weight:700;margin-top:2px" id="qr-habit-name-label"></div>
+      </div>
+      <button id="qr-close-btn" style="background:none;border:none;color:var(--text3);
+        font-size:22px;cursor:pointer;line-height:1;padding:4px 8px;border-radius:8px;
+        transition:all var(--transition)" onmouseenter="this.style.background='var(--bg4)'"
+        onmouseleave="this.style.background='none'">✕</button>
+    </div>
+
+    <!-- Body -->
+    <div style="padding:22px">
+
+      <!-- Notification permission banner -->
+      <div id="qr-notif-banner" style="display:none;background:var(--amber-soft);border:1px solid rgba(217,119,6,.25);
+        border-radius:10px;padding:12px 16px;margin-bottom:16px;font-size:13px;font-weight:700;color:var(--amber)">
+        🔕 Notifications are not enabled.
+        <button onclick="qrRequestPermission()" style="background:var(--amber);color:#fff;border:none;
+          padding:5px 14px;border-radius:8px;font-size:12px;font-weight:800;cursor:pointer;margin-left:8px">
+          Enable Now
+        </button>
+      </div>
+
+      <!-- Scrollable time picker -->
+      <div style="margin-bottom:18px">
+        <label style="display:block;font-size:11px;font-weight:800;color:var(--text3);
+          text-transform:uppercase;letter-spacing:.7px;margin-bottom:10px">Reminder Time</label>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <!-- Hour drum -->
+          <div class="time-drum-wrap">
+            <button class="time-drum-arrow" onclick="qrDrumStep('hour',-1)">▲</button>
+            <div class="time-drum-display" id="qr-hour-display">9</div>
+            <button class="time-drum-arrow" onclick="qrDrumStep('hour',1)">▼</button>
+            <input type="hidden" id="qr-hour" value="9"/>
+          </div>
+          <div style="font-size:26px;font-weight:800;color:var(--text3);user-select:none;line-height:1">:</div>
+          <!-- Minute drum -->
+          <div class="time-drum-wrap">
+            <button class="time-drum-arrow" onclick="qrDrumStep('min',-1)">▲</button>
+            <div class="time-drum-display" id="qr-min-display">00</div>
+            <button class="time-drum-arrow" onclick="qrDrumStep('min',1)">▼</button>
+            <input type="hidden" id="qr-minute" value="0"/>
+          </div>
+          <!-- AM/PM drum -->
+          <div class="time-drum-wrap" style="min-width:64px">
+            <button class="time-drum-arrow" onclick="qrDrumStep('ampm',-1)">▲</button>
+            <div class="time-drum-display" id="qr-ampm-display" style="font-size:15px">AM</div>
+            <button class="time-drum-arrow" onclick="qrDrumStep('ampm',1)">▼</button>
+          </div>
+        </div>
+        <div id="qr-time-preview" style="font-size:12px;color:var(--text3);font-weight:700;
+          margin-top:10px;padding-left:2px"></div>
+      </div>
+
+      <!-- Schedule -->
+      <div style="margin-bottom:18px">
+        <label style="display:block;font-size:11px;font-weight:800;color:var(--text3);
+          text-transform:uppercase;letter-spacing:.7px;margin-bottom:10px">Schedule</label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button id="qr-sched-everyday" onclick="qrSetSchedule('everyday')" style="
+            display:flex;align-items:center;gap:6px;padding:9px 18px;border-radius:20px;
+            font-size:13px;font-weight:800;cursor:pointer;transition:all var(--transition);
+            border:1.5px solid var(--indigo);background:var(--indigo);color:#fff">
+            📅 Everyday
+          </button>
+          <button id="qr-sched-specific" onclick="qrSetSchedule('specific')" style="
+            display:flex;align-items:center;gap:6px;padding:9px 18px;border-radius:20px;
+            font-size:13px;font-weight:800;cursor:pointer;transition:all var(--transition);
+            border:1.5px solid var(--border);background:var(--bg3);color:var(--text2)">
+            📆 Specific Date
+          </button>
+        </div>
+        <div id="qr-date-wrap" style="display:none;margin-top:12px">
+          <input type="date" id="qr-specific-date" class="form-input"
+            placeholder="Select date" style="max-width:200px"/>
+        </div>
+      </div>
+
+      <!-- Label -->
+      <div style="margin-bottom:22px">
+        <label style="display:block;font-size:11px;font-weight:800;color:var(--text3);
+          text-transform:uppercase;letter-spacing:.7px;margin-bottom:10px">
+          Label <span style="text-transform:none;font-size:11px;opacity:.7">(optional)</span>
+        </label>
+        <input type="text" id="qr-label" class="form-input"
+          placeholder="e.g. Don't skip today! Time to stay consistent."/>
+      </div>
+
+      <!-- Actions -->
+      <div style="display:flex;gap:10px">
+        <button id="qr-cancel-btn" style="
+          flex:1;padding:12px;border-radius:25px;font-size:13px;font-weight:800;cursor:pointer;
+          background:var(--bg3);color:var(--text2);border:1.5px solid var(--border);
+          transition:all var(--transition);font-family:var(--font)">
+          Cancel
+        </button>
+        <button id="qr-save-btn" onclick="qrSaveReminder()" style="
+          flex:2;padding:12px;border-radius:25px;font-size:13px;font-weight:800;cursor:pointer;
+          background:linear-gradient(135deg,var(--indigo),var(--violet));color:#fff;border:none;
+          box-shadow:0 4px 14px rgba(67,56,202,.3);transition:all var(--transition);font-family:var(--font)">
+          🔔 Save Reminder
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ── Habit filtering ───────────────────────────────────
+function filterHabits(q) {
+  q = q.toLowerCase();
+  document.querySelectorAll('.habit-card').forEach(card => {
+    card.style.display = (card.dataset.name||'').includes(q) ? '' : 'none';
+  });
+}
+let activeFilter = 'all';
+function filterByPriority(p, btn) {
+  activeFilter = p;
+  document.querySelectorAll('.filter-pill').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.habit-card').forEach(card => {
+    card.style.display = (p === 'all' || card.dataset.priority === p) ? '' : 'none';
+  });
+}
+
+// ══════════════════════════════════════════════════════
+//  QUICK REMINDER SYSTEM — completely self-contained
+// ══════════════════════════════════════════════════════
+let _qrHabitId   = null;
+let _qrAmPm      = 'AM';
+let _qrSchedule  = 'everyday';
+
+function openQuickReminder(habitId, habitName) {
+  _qrHabitId  = habitId;
+  _qrAmPm     = 'AM';
+  _qrSchedule = 'everyday';
+
+  // Reset form
+  document.getElementById('qr-hour').value        = '9';
+  document.getElementById('qr-minute').value       = '00';
+  document.getElementById('qr-label').value        = '';
+  document.getElementById('qr-date-wrap').style.display = 'none';
+  document.getElementById('qr-specific-date').value = '';
+  document.getElementById('qr-habit-name-label').textContent = habitName;
+
+  _qrAmPm = 'AM'; _qrHour = 9; _qrMin = 0;
+  document.getElementById('qr-hour-display').textContent = '9';
+  document.getElementById('qr-min-display').textContent = '00';
+  document.getElementById('qr-ampm-display').textContent = 'AM';
+  document.getElementById('qr-hour').value = 9;
+  document.getElementById('qr-minute').value = 0;
+  qrSetSchedule('everyday');
+  qrUpdatePreview();
+
+  // Show notification banner if not granted
+  const banner = document.getElementById('qr-notif-banner');
+  if ('Notification' in window && Notification.permission !== 'granted') {
+    banner.style.display = 'block';
+  } else {
+    banner.style.display = 'none';
+  }
+
+  // Show overlay
+  const overlay = document.getElementById('quick-reminder-overlay');
+  overlay.style.display = 'flex';
+  overlay.setAttribute('aria-hidden', 'false');
+  document.body.style.overflow = 'hidden';
+
+  // Focus close button for accessibility
+  setTimeout(() => document.getElementById('qr-close-btn')?.focus(), 100);
+}
+
+function closeQuickReminder() {
+  const overlay = document.getElementById('quick-reminder-overlay');
+  overlay.style.display = 'none';
+  overlay.setAttribute('aria-hidden', 'true');
+  document.body.style.overflow = '';
+  _qrHabitId = null;
+}
+
+// ── Drum-roll time picker ─────────────────────────────
+let _qrHour = 9, _qrMin = 0;
+
+function qrDrumStep(drum, dir) {
+  if (drum === 'hour') {
+    _qrHour = ((_qrHour - 1 + dir + 12) % 12) + 1;
+    document.getElementById('qr-hour-display').textContent = _qrHour;
+    document.getElementById('qr-hour').value = _qrHour;
+  } else if (drum === 'min') {
+    _qrMin = (_qrMin + dir * 5 + 60) % 60;
+    document.getElementById('qr-min-display').textContent = String(_qrMin).padStart(2,'0');
+    document.getElementById('qr-minute').value = _qrMin;
+  } else if (drum === 'ampm') {
+    _qrAmPm = _qrAmPm === 'AM' ? 'PM' : 'AM';
+    document.getElementById('qr-ampm-display').textContent = _qrAmPm;
+  }
+  qrUpdatePreview();
+}
+
+function qrSetSchedule(mode) {
+  _qrSchedule = mode;
+  const evBtn = document.getElementById('qr-sched-everyday');
+  const spBtn = document.getElementById('qr-sched-specific');
+  const dateWrap = document.getElementById('qr-date-wrap');
+  if (!evBtn || !spBtn) return;
+  if (mode === 'everyday') {
+    evBtn.style.background = 'var(--indigo)'; evBtn.style.color = '#fff'; evBtn.style.borderColor = 'var(--indigo)';
+    spBtn.style.background = 'var(--bg3)'; spBtn.style.color = 'var(--text2)'; spBtn.style.borderColor = 'var(--border)';
+    dateWrap.style.display = 'none';
+  } else {
+    spBtn.style.background = 'var(--indigo)'; spBtn.style.color = '#fff'; spBtn.style.borderColor = 'var(--indigo)';
+    evBtn.style.background = 'var(--bg3)'; evBtn.style.color = 'var(--text2)'; evBtn.style.borderColor = 'var(--border)';
+    dateWrap.style.display = 'block';
+    setTimeout(() => document.getElementById('qr-specific-date')?.focus(), 50);
+  }
+}
+
+function qrValidateTime() { qrUpdatePreview(); } // kept for compatibility
+
+function qrUpdatePreview() {
+  const el = document.getElementById('qr-time-preview');
+  if (el) el.textContent = `Reminder will fire at ${_qrHour}:${String(_qrMin).padStart(2,'0')} ${_qrAmPm}`;
+}
+
+function qrTo24h() {
+  let h24 = _qrHour % 12;
+  if (_qrAmPm === 'PM') h24 += 12;
+  return `${String(h24).padStart(2,'0')}:${String(_qrMin).padStart(2,'0')}`;
+}
+
+async function qrRequestPermission() {
+  if (!('Notification' in window)) return;
+  const perm = await Notification.requestPermission();
+  if (perm === 'granted') {
+    document.getElementById('qr-notif-banner').style.display = 'none';
+    showGlobalToast('Notifications enabled! 🔔');
+  } else {
+    showGlobalToast('Notification permission denied. Reminders may not fire.', 'warn');
+  }
+}
+
+async function qrSaveReminder() {
+  if (!_qrHabitId) return;
+
+  // Validate
+  const h = parseInt(document.getElementById('qr-hour').value);
+  const m = parseInt(document.getElementById('qr-minute').value);
+  if (!h || h < 1 || h > 12) { showGlobalToast('Enter a valid hour (1–12)', 'warn'); return; }
+  if (isNaN(m) || m < 0 || m > 59) { showGlobalToast('Enter a valid minute (0–59)', 'warn'); return; }
+
+  let schedule = 'everyday';
+  if (_qrSchedule === 'specific') {
+    schedule = document.getElementById('qr-specific-date').value;
+    if (!schedule) { showGlobalToast('Please select a specific date', 'warn'); return; }
+  }
+
+  const time24 = qrTo24h();
+  const label  = document.getElementById('qr-label').value.trim();
+
+  const btn = document.getElementById('qr-save-btn');
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+
+  try {
+    const resp = await fetch(`/api/habit/${_qrHabitId}/reminders`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ time: time24, schedule, label, enabled: true })
+    });
+    const data = await resp.json();
+    if (data.status === 'ok') {
+      // Format time for toast
+      const h12 = _qrHour;
+      const mStr = String(_qrMin).padStart(2,'0');
+      const schedLabel = schedule === 'everyday' ? 'every day' : schedule;
+      showGlobalToast(`🔔 Reminder set for ${h12}:${mStr} ${_qrAmPm} — ${schedLabel}`);
+      closeQuickReminder();
+      // Trigger permission request if not granted yet
+      if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission();
+      }
+    } else {
+      showGlobalToast('Failed to save reminder', 'error');
+    }
+  } catch(e) {
+    showGlobalToast('Network error saving reminder', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🔔 Save Reminder';
+  }
+}
+
+// ── Event listeners ───────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  // Close on overlay background click
+  document.getElementById('quick-reminder-overlay')?.addEventListener('click', function(e) {
+    if (e.target === this) closeQuickReminder();
+  });
+
+  // Close button
+  document.getElementById('qr-close-btn')?.addEventListener('click', closeQuickReminder);
+
+  // Cancel button
+  document.getElementById('qr-cancel-btn')?.addEventListener('click', closeQuickReminder);
+
+  // Escape key — only close reminder, don't interfere with main modal system
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+      const overlay = document.getElementById('quick-reminder-overlay');
+      if (overlay && overlay.style.display !== 'none') {
+        e.stopPropagation();
+        closeQuickReminder();
+      }
+    }
+  });
+
+  // Drum pickers: touch/swipe support
+  addDrumSwipe('qr-hour-display',  d => qrDrumStep('hour', d));
+  addDrumSwipe('qr-min-display',   d => qrDrumStep('min',  d));
+  addDrumSwipe('qr-ampm-display',  d => qrDrumStep('ampm', d));
+
+  // Set today's date as default for specific date picker
+  const today = new Date().toISOString().split('T')[0];
+  const dateEl = document.getElementById('qr-specific-date');
+  if (dateEl) dateEl.value = today;
+});
+</script>
+
+<style>
+@keyframes qrSlideIn {
+  from { opacity:0; transform:scale(0.92) translateY(12px); }
+  to   { opacity:1; transform:scale(1) translateY(0); }
+}
+.btn-reminder {
+  background: var(--violet-soft);
+  border: 1.5px solid rgba(124,58,237,0.25);
+  color: var(--violet);
+  padding: 7px 10px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 800;
+  transition: all var(--transition);
+  cursor: pointer;
+  white-space: nowrap;
+  font-family: var(--font);
+}
+.btn-reminder:hover {
+  background: var(--violet);
+  color: #fff;
+  border-color: var(--violet);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(124,58,237,0.35);
+}
+[data-theme="dark"] #quick-reminder-box {
+  background: #1a2030;
+  border-color: #2a3348;
+}
+[data-theme="dark"] #quick-reminder-box > div:first-child {
+  background: #151d2e;
+  border-color: #2a3348;
+}
+[data-theme="dark"] #qr-hour,
+[data-theme="dark"] #qr-minute {
+  color: #e8edf5;
+}
+</style>
+{% endblock %}
