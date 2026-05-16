@@ -1,0 +1,1103 @@
+{% extends "base.html" %}
+{% block title %}{{ habit.name }} — Detail{% endblock %}
+{% block topbar_title %}Habit Detail{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <a href="/habits" class="back-link" onclick="sessionStorage.setItem('aurix_splash_done','1')">← Back to Habits</a>
+    <h1 class="page-title">{{ habit.name }}</h1>
+    <p class="page-sub">{{ habit.category }} · {{ habit.priority }} Priority · {{ today }}</p>
+  </div>
+  <div class="btn-row">
+    <button class="btn-reminder-header" onclick="openDetailReminder()">🔔 Add Reminder</button>
+    <a href="/habit-history/{{ habit.id }}" class="btn-secondary btn-sm" onclick="sessionStorage.setItem('aurix_splash_done','1')">📊 History</a>
+  </div>
+</div>
+
+<!-- Stats Row -->
+<div class="cards-grid cards-grid-4 mb-20">
+  <div class="stat-card" style="--stat-color:var(--accent)">
+    <div class="stat-card-bg-icon">🔥</div>
+    <div class="stat-card-label">Current Streak</div>
+    <div class="stat-card-num">{{ streak }}<span class="denom">d</span></div>
+  </div>
+  <div class="stat-card" style="--stat-color:var(--success)">
+    <div class="stat-card-bg-icon">✅</div>
+    <div class="stat-card-label">Tasks Done Today</div>
+    <div class="stat-card-num">{{ completed_tasks|length }}<span class="denom">/{{ today_entry.sub_tasks|length }}</span></div>
+  </div>
+  <div class="stat-card" style="--stat-color:var(--warn)">
+    <div class="stat-card-bg-icon">⏱</div>
+    <div class="stat-card-label">Hours Logged Today</div>
+    <div class="stat-card-num">{{ total_hours }}<span class="denom">h</span></div>
+  </div>
+  <div class="stat-card" style="--stat-color:var(--violet)">
+    <div class="stat-card-bg-icon">📅</div>
+    <div class="stat-card-label">Logged Days (30d)</div>
+    <div class="stat-card-num">{{ history|selectattr('done')|list|length }}</div>
+  </div>
+</div>
+
+<!-- Completion Rate Banner -->
+{% set done_days = history|selectattr('done')|list|length %}
+{% set rate_pct = (done_days / 30 * 100)|int %}
+<div class="card mb-20" style="background:linear-gradient(135deg,var(--indigo-soft),var(--violet-soft));border-color:rgba(99,102,241,.2)">
+  <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+    <div style="flex:1;min-width:160px">
+      <div style="font-size:12px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px">30-Day Completion Rate</div>
+      <div style="font-size:28px;font-weight:800;font-family:var(--font-display);color:{% if rate_pct >= 70 %}var(--emerald){% elif rate_pct >= 40 %}var(--amber){% else %}var(--coral){% endif %}">{{ rate_pct }}%</div>
+      <div style="font-size:12px;color:var(--text3);font-weight:700">{{ done_days }}/30 days completed</div>
+    </div>
+    <div style="flex:2;min-width:180px">
+      <div class="progress-bar-wrap" style="margin:0;height:10px">
+        <div class="progress-bar" style="width:{{ rate_pct }}%;background:{% if rate_pct >= 70 %}linear-gradient(90deg,var(--emerald),#34d399){% elif rate_pct >= 40 %}linear-gradient(90deg,var(--amber),#fbbf24){% else %}linear-gradient(90deg,var(--coral),#fb923c){% endif %}"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-top:6px;font-size:11px;color:var(--text3);font-weight:700">
+        <span>🔥 Streak: <strong style="color:var(--amber)">{{ streak }}d</strong></span>
+        <span>Week: <strong>{{ history[-7:]|selectattr('done')|list|length }}/7</strong></span>
+      </div>
+    </div>
+    {% if habit.notes %}
+    <div style="flex:1;min-width:140px;padding:10px 14px;background:var(--surface);border-radius:10px;border:1px solid var(--border)">
+      <div style="font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Notes</div>
+      <div style="font-size:13px;color:var(--text2);font-weight:600;line-height:1.5">{{ habit.notes }}</div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="two-col-grid">
+  <!-- Sub-tasks -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-icon" style="background:var(--indigo-soft)">✅</div>
+      <div class="card-title">Today's Sub-Tasks</div>
+      <button class="btn-primary btn-sm" onclick="openModal('modal-add-subtask')">+ Add Task</button>
+    </div>
+    {% if today_entry.sub_tasks %}
+    <div class="subtask-list" id="subtask-list">
+      {% for st in today_entry.sub_tasks %}
+      <div class="subtask-item {% if st.done %}subtask-done{% endif %}" id="st-{{ st.id }}">
+        <button class="subtask-check" onclick="toggleSubtask({{ habit.id }}, {{ st.id }}, this)">
+          {% if st.done %}✓{% else %}○{% endif %}
+        </button>
+        <div class="subtask-body">
+          <div class="subtask-name {% if st.done %}line-through text-muted{% endif %}">{{ st.name }}</div>
+          <div class="subtask-meta">
+            {% if st.quantity %}<span class="subtask-qty">{{ st.quantity }} {{ st.unit }}</span>{% endif %}
+            {% if st.type != 'general' %}<span class="subtask-type-badge">{{ st.type }}</span>{% endif %}
+            {% if st.notes %}<span class="text-muted">· {{ st.notes }}</span>{% endif %}
+          </div>
+        </div>
+        <form method="POST" action="/habit/{{ habit.id }}/delete-subtask/{{ st.id }}" style="display:inline"
+              onsubmit="sessionStorage.setItem('aurix_splash_done','1')">
+          <button class="icon-btn icon-btn-danger" type="submit">✕</button>
+        </form>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-sm">No sub-tasks for today. Add specific activities to track.</div>
+    {% endif %}
+    {% if today_entry.sub_tasks %}
+    <div class="subtask-progress-bar-wrap mt-12">
+      {% set done_count = today_entry.sub_tasks|selectattr('done')|list|length %}
+      {% set total_count = today_entry.sub_tasks|length %}
+      {% set pct = (done_count / total_count * 100)|int if total_count else 0 %}
+      <div class="subtask-progress-label">{{ done_count }}/{{ total_count }} done ({{ pct }}%)</div>
+      <div class="progress-bar-wrap"><div class="progress-bar" style="width:{{ pct }}%"></div></div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Time Slots -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-icon" style="background:var(--amber-soft)">⏱</div>
+      <div class="card-title">Time Slots Today</div>
+      <button class="btn-primary btn-sm" onclick="openModal('modal-add-timeslot')">+ Add Slot</button>
+    </div>
+    {% if today_entry.time_slots %}
+    <div class="timeslot-list">
+      {% for ts in today_entry.time_slots %}
+      <div class="timeslot-item">
+        <div class="timeslot-icon">🕐</div>
+        <div class="timeslot-body">
+          <div class="timeslot-range">{{ ts.start }} → {{ ts.end }}</div>
+          <div class="timeslot-meta">
+            <span class="timeslot-duration">{{ ts.duration_hours }}h</span>
+            {% if ts.label %}<span class="text-muted">· {{ ts.label }}</span>{% endif %}
+          </div>
+        </div>
+        <form method="POST" action="/habit/{{ habit.id }}/delete-timeslot/{{ ts.id }}" style="display:inline"
+              onsubmit="sessionStorage.setItem('aurix_splash_done','1')">
+          <button class="icon-btn icon-btn-danger" type="submit">✕</button>
+        </form>
+      </div>
+      {% endfor %}
+      <div class="timeslot-total">Total: <strong>{{ total_hours }}h</strong> logged today</div>
+    </div>
+    {% else %}
+    <div class="empty-sm">No time slots yet. Log your study/work sessions.</div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- ══ REMINDERS SECTION ══ -->
+<div class="card mb-20" style="margin-top:20px">
+  <div class="card-header">
+    <div class="card-icon" style="background:var(--violet-soft)">🔔</div>
+    <div class="card-title">Habit Reminders</div>
+    <div style="display:flex;gap:8px;align-items:center;margin-left:auto">
+      <!-- Mute toggle -->
+      <button id="sound-toggle-btn" onclick="toggleReminderSound()" title="Toggle reminder sound"
+        style="background:var(--bg3);border:1.5px solid var(--border);color:var(--text2);
+          width:34px;height:34px;border-radius:10px;font-size:16px;cursor:pointer;
+          display:flex;align-items:center;justify-content:center;transition:all var(--transition)">
+        🔔
+      </button>
+      <button class="btn-primary btn-sm" onclick="openDetailReminder()">+ Add Reminder</button>
+    </div>
+  </div>
+
+  <!-- Permission banner -->
+  <div id="detail-notif-banner" style="display:none;background:var(--amber-soft);
+    border:1px solid rgba(217,119,6,.25);border-radius:10px;padding:12px 16px;
+    margin-bottom:14px;font-size:13px;font-weight:700;color:var(--amber)">
+    🔕 Notifications are not enabled — reminders won't fire until you allow notifications.
+    <button onclick="detailRequestPermission()" style="background:var(--amber);color:#fff;border:none;
+      padding:5px 14px;border-radius:8px;font-size:12px;font-weight:800;cursor:pointer;margin-left:8px">
+      Enable Notifications
+    </button>
+  </div>
+
+  <div id="reminders-list" style="min-height:40px">
+    <div class="rem-loading">Loading reminders…</div>
+  </div>
+</div>
+
+<!-- ══ DEBUG / TEST PANEL ══ -->
+<div class="card mb-20" id="debug-panel" style="border:1.5px solid rgba(245,158,11,0.3);background:linear-gradient(135deg,rgba(245,158,11,0.05),rgba(251,191,36,0.03))">
+  <div class="card-header">
+    <div class="card-icon" style="background:rgba(245,158,11,0.15)">🧪</div>
+    <div class="card-title" style="color:var(--amber)">Reminder & Notification Debug</div>
+    <button onclick="toggleDebugPanel()" class="btn-secondary btn-sm" id="debug-toggle-btn">Hide</button>
+  </div>
+  <div id="debug-panel-body">
+    <!-- Status Row -->
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+      <div id="dbg-notif-status" class="dbg-status-pill dbg-pill-unknown">⚪ Checking…</div>
+      <div id="dbg-sw-status"    class="dbg-status-pill dbg-pill-unknown">⚪ SW: Checking…</div>
+      <div id="dbg-poll-status"  class="dbg-status-pill dbg-pill-unknown">⚪ Poll: Off</div>
+    </div>
+
+    <!-- Test Buttons -->
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+      <button class="btn-dbg" onclick="dbgRequestPermission()">🔔 Enable Notifications</button>
+      <button class="btn-dbg" onclick="dbgTestNotification()">📤 Send Test Notification</button>
+      <button class="btn-dbg" onclick="dbgTestSound()">🎵 Test Sound</button>
+      <button class="btn-dbg" onclick="dbgTriggerNow()">⚡ Trigger Reminder Now</button>
+      <button class="btn-dbg" onclick="dbgCheckStatus()">🔄 Refresh Status</button>
+    </div>
+
+    <!-- Log output -->
+    <div style="background:var(--bg1);border:1px solid var(--border);border-radius:8px;
+      padding:10px 14px;font-family:var(--mono);font-size:11px;max-height:160px;overflow-y:auto"
+      id="dbg-log">
+      <div style="color:var(--text3)">Debug log will appear here…</div>
+    </div>
+
+    <!-- Reminder status table -->
+    <div id="dbg-reminder-table" style="margin-top:12px"></div>
+  </div>
+</div>
+
+<!-- 30-Day Activity -->
+<div class="card">
+  <div class="card-header">
+    <div class="card-icon" style="background:var(--violet-soft)">📅</div>
+    <div class="card-title">30-Day Activity</div>
+  </div>
+  <div class="history-grid">
+    {% for h in history|reverse %}
+    <a href="/date-details/{{ h.date }}" class="history-cell {% if h.done %}history-done{% else %}history-miss{% endif %}"
+       title="{{ h.date }}{% if h.hours > 0 %} · {{ h.hours }}h{% endif %}"
+       onclick="sessionStorage.setItem('aurix_splash_done','1')">
+      {{ h.date[8:] }}
+    </a>
+    {% endfor %}
+  </div>
+  <div class="history-legend mt-8">
+    <span class="history-cell-sm history-done">Done</span>
+    <span class="history-cell-sm history-miss">Missed</span>
+  </div>
+</div>
+
+<!-- ══ REMINDER MODAL — standalone fixed overlay ══ -->
+<div id="detail-reminder-overlay" aria-hidden="true" style="
+  display:none; position:fixed; inset:0; z-index:10000;
+  background:rgba(0,0,0,0.58); backdrop-filter:blur(7px);
+  align-items:center; justify-content:center; padding:16px;">
+
+  <div id="detail-reminder-box" role="dialog" aria-modal="true" style="
+    background:var(--surface); border:1.5px solid var(--border);
+    border-radius:var(--radius); box-shadow:0 24px 60px rgba(0,0,0,0.5);
+    width:min(480px,100%); max-height:90vh; overflow-y:auto;
+    animation:drSlideIn .22s cubic-bezier(.34,1.56,.64,1)">
+
+    <!-- Header -->
+    <div id="dr-header" style="display:flex;align-items:center;justify-content:space-between;
+      padding:18px 22px 14px;border-bottom:1px solid var(--border);
+      background:var(--bg3);border-radius:var(--radius) var(--radius) 0 0;
+      position:sticky;top:0;z-index:1">
+      <div>
+        <div style="font-size:15px;font-weight:800" id="dr-modal-title">🔔 Add Reminder</div>
+        <div style="font-size:12px;color:var(--text3);font-weight:700;margin-top:2px">{{ habit.name }}</div>
+      </div>
+      <button id="dr-close-btn" style="background:none;border:none;color:var(--text3);
+        font-size:22px;cursor:pointer;line-height:1;padding:6px 10px;border-radius:8px;
+        transition:background var(--transition)"
+        onmouseenter="this.style.background='var(--bg4)'"
+        onmouseleave="this.style.background='none'">✕</button>
+    </div>
+
+    <!-- Body -->
+    <div style="padding:24px">
+      <input type="hidden" id="dr-editing-id" value="">
+
+      <!-- Scrollable drum-roll time picker -->
+      <div style="margin-bottom:20px">
+        <label style="display:block;font-size:11px;font-weight:800;color:var(--text3);
+          text-transform:uppercase;letter-spacing:.7px;margin-bottom:10px">Reminder Time</label>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <!-- Hour drum -->
+          <div class="time-drum-wrap">
+            <button class="time-drum-arrow" onclick="drDrumStep('hour',-1)">▲</button>
+            <div class="time-drum-display" id="dr-hour-display">9</div>
+            <button class="time-drum-arrow" onclick="drDrumStep('hour',1)">▼</button>
+            <input type="hidden" id="dr-hour" value="9"/>
+          </div>
+          <div style="font-size:26px;font-weight:800;color:var(--text3);user-select:none;line-height:1">:</div>
+          <!-- Minute drum -->
+          <div class="time-drum-wrap">
+            <button class="time-drum-arrow" onclick="drDrumStep('min',-1)">▲</button>
+            <div class="time-drum-display" id="dr-min-display">00</div>
+            <button class="time-drum-arrow" onclick="drDrumStep('min',1)">▼</button>
+            <input type="hidden" id="dr-minute" value="0"/>
+          </div>
+          <!-- AM/PM drum -->
+          <div class="time-drum-wrap" style="min-width:64px">
+            <button class="time-drum-arrow" onclick="drDrumStep('ampm',-1)">▲</button>
+            <div class="time-drum-display" id="dr-ampm-display" style="font-size:15px">AM</div>
+            <button class="time-drum-arrow" onclick="drDrumStep('ampm',1)">▼</button>
+          </div>
+        </div>
+        <div id="dr-time-preview" style="font-size:12px;color:var(--text3);font-weight:700;
+          margin-top:10px;padding-left:2px"></div>
+      </div>
+
+      <!-- Schedule -->
+      <div style="margin-bottom:20px">
+        <label style="display:block;font-size:11px;font-weight:800;color:var(--text3);
+          text-transform:uppercase;letter-spacing:.7px;margin-bottom:10px">Schedule</label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button id="dr-sched-everyday" onclick="drSetSchedule('everyday')" style="
+            display:flex;align-items:center;gap:6px;padding:10px 20px;border-radius:22px;
+            font-size:13px;font-weight:800;cursor:pointer;transition:all var(--transition);
+            border:1.5px solid var(--indigo);background:var(--indigo);color:#fff;
+            font-family:var(--font)">📅 Everyday</button>
+          <button id="dr-sched-specific" onclick="drSetSchedule('specific')" style="
+            display:flex;align-items:center;gap:6px;padding:10px 20px;border-radius:22px;
+            font-size:13px;font-weight:800;cursor:pointer;transition:all var(--transition);
+            border:1.5px solid var(--border);background:var(--bg3);color:var(--text2);
+            font-family:var(--font)">📆 Specific Date</button>
+        </div>
+        <div id="dr-date-wrap" style="display:none;margin-top:12px">
+          <input type="date" id="dr-specific-date" class="form-input" style="max-width:200px"/>
+        </div>
+      </div>
+
+      <!-- Label -->
+      <div style="margin-bottom:24px">
+        <label style="display:block;font-size:11px;font-weight:800;color:var(--text3);
+          text-transform:uppercase;letter-spacing:.7px;margin-bottom:10px">
+          Custom Message <span style="text-transform:none;opacity:.6;font-size:11px">(optional)</span>
+        </label>
+        <input type="text" id="dr-label" class="form-input"
+          placeholder="e.g. Stay consistent — don't skip today!"/>
+      </div>
+
+      <!-- Actions -->
+      <div style="display:flex;gap:10px">
+        <button id="dr-cancel-btn" style="
+          flex:1;padding:12px;border-radius:25px;font-size:13px;font-weight:800;
+          cursor:pointer;background:var(--bg3);color:var(--text2);
+          border:1.5px solid var(--border);transition:all var(--transition);font-family:var(--font)">
+          Cancel
+        </button>
+        <button id="dr-save-btn" onclick="drSaveReminder()" style="
+          flex:2;padding:12px;border-radius:25px;font-size:13px;font-weight:800;
+          cursor:pointer;background:linear-gradient(135deg,var(--indigo),var(--violet));
+          color:#fff;border:none;box-shadow:0 4px 14px rgba(67,56,202,.3);
+          transition:all var(--transition);font-family:var(--font)">
+          🔔 Save Reminder
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Sub-task / Timeslot modals (use existing app modal system) -->
+<div id="modal-add-subtask" class="modal-content hidden">
+  <div class="modal-header"><h3>Add Sub-Task</h3><p>Break {{ habit.name }} into specific activities</p></div>
+  <form method="POST" action="/habit/{{ habit.id }}/add-subtask"
+        onsubmit="sessionStorage.setItem('aurix_splash_done','1')">
+    <div class="form-group"><label>Activity Name</label>
+      <input type="text" name="name" required class="form-input" placeholder="e.g. Pushups, DSA Problems, Pages read…"/></div>
+    <div class="form-row">
+      <div class="form-group"><label>Type</label>
+        <select name="type" class="form-input">
+          <option value="general">General</option>
+          <option value="reps">Reps / Count</option>
+          <option value="time">Time / Duration</option>
+          <option value="distance">Distance</option>
+          <option value="pages">Pages</option>
+          <option value="problems">Problems</option>
+        </select></div>
+      <div class="form-group"><label>Quantity</label>
+        <input type="text" name="quantity" class="form-input" placeholder="e.g. 20, 5, 30…"/></div>
+    </div>
+    <div class="form-group"><label>Unit</label>
+      <input type="text" name="unit" class="form-input" placeholder="reps / km / min / pages…"/></div>
+    <div class="form-group"><label>Notes (optional)</label>
+      <input type="text" name="notes" class="form-input" placeholder="Any notes…"/></div>
+    <div class="form-actions">
+      <button type="button" class="btn-secondary" onclick="closeActiveModal()">Cancel</button>
+      <button type="submit" class="btn-primary">Add Task</button>
+    </div>
+  </form>
+</div>
+
+<div id="modal-add-timeslot" class="modal-content hidden">
+  <div class="modal-header"><h3>Log Time Slot</h3><p>Duration auto-calculated from start and end time</p></div>
+  <form method="POST" action="/habit/{{ habit.id }}/add-timeslot"
+        onsubmit="sessionStorage.setItem('aurix_splash_done','1')">
+    <div class="form-row">
+      <div class="form-group"><label>Start Time</label>
+        <input type="time" name="start_time" required class="form-input"/></div>
+      <div class="form-group"><label>End Time</label>
+        <input type="time" name="end_time" required class="form-input"/></div>
+    </div>
+    <div class="form-group"><label>Label (optional)</label>
+      <input type="text" name="label" class="form-input" placeholder="e.g. Morning workout, Evening study…"/></div>
+    <div class="form-actions">
+      <button type="button" class="btn-secondary" onclick="closeActiveModal()">Cancel</button>
+      <button type="submit" class="btn-primary">Log Time</button>
+    </div>
+  </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+/* ══════════════════════════════════════════════════════
+   HABIT DETAIL — Complete JS
+   ══════════════════════════════════════════════════════ */
+const HABIT_ID = {{ habit.id }};
+
+// ── Subtask toggle ────────────────────────────────────
+function toggleSubtask(hid, stid) {
+  fetch(`/habit/${hid}/toggle-subtask/${stid}`, { method: 'POST' })
+    .then(r => r.json())
+    .then(() => { sessionStorage.setItem('aurix_splash_done', '1'); location.reload(); })
+    .catch(() => showGlobalToast('Error toggling task', 'error'));
+}
+
+/* ══════════════════════════════════════════════════════
+   REMINDER SOUND ENGINE
+   — single shared AudioContext, mute/unmute, no overlap
+   ══════════════════════════════════════════════════════ */
+let _audioCtx = null;
+let _soundMuted = localStorage.getItem('aurix_muted') === '1';
+let _chimePlaying = false;
+
+function getAudioCtx() {
+  if (!_audioCtx || _audioCtx.state === 'closed') {
+    _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  if (_audioCtx.state === 'suspended') _audioCtx.resume();
+  return _audioCtx;
+}
+
+function updateSoundBtn() {
+  const btn = document.getElementById('sound-toggle-btn');
+  if (!btn) return;
+  btn.textContent = _soundMuted ? '🔕' : '🔔';
+  btn.title = _soundMuted ? 'Sound muted — click to unmute' : 'Sound on — click to mute';
+  btn.style.background = _soundMuted ? 'var(--rose-soft)' : 'var(--bg3)';
+  btn.style.color = _soundMuted ? 'var(--rose)' : 'var(--text2)';
+  btn.style.borderColor = _soundMuted ? 'rgba(225,29,72,.25)' : 'var(--border)';
+}
+
+function toggleReminderSound() {
+  _soundMuted = !_soundMuted;
+  localStorage.setItem('aurix_muted', _soundMuted ? '1' : '0');
+  updateSoundBtn();
+  showGlobalToast(_soundMuted ? '🔕 Reminder sound muted' : '🔔 Reminder sound on');
+}
+
+// Modern 3-note chime: C5 → E5 → G5, smooth sine, medium volume, no overlap
+function playDetailChime() {
+  if (_soundMuted || _chimePlaying) return;
+  try {
+    const ctx = getAudioCtx();
+    _chimePlaying = true;
+    const masterGain = ctx.createGain();
+    masterGain.gain.setValueAtTime(0.28, ctx.currentTime); // medium volume
+    masterGain.connect(ctx.destination);
+
+    const notes = [
+      { freq: 523.25, start: 0,    dur: 0.55 },  // C5
+      { freq: 659.25, start: 0.2,  dur: 0.55 },  // E5
+      { freq: 783.99, start: 0.4,  dur: 0.75 },  // G5
+    ];
+    const totalDur = 1.2;
+
+    notes.forEach(({ freq, start, dur }) => {
+      const osc  = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, ctx.currentTime + start);
+      // Slight vibrato for warmth
+      const lfo = ctx.createOscillator();
+      const lfoGain = ctx.createGain();
+      lfo.frequency.setValueAtTime(5, ctx.currentTime);
+      lfoGain.gain.setValueAtTime(2, ctx.currentTime);
+      lfo.connect(lfoGain);
+      lfoGain.connect(osc.frequency);
+      lfo.start(ctx.currentTime + start);
+      lfo.stop(ctx.currentTime + start + dur);
+
+      gain.gain.setValueAtTime(0, ctx.currentTime + start);
+      gain.gain.linearRampToValueAtTime(1, ctx.currentTime + start + 0.04);
+      gain.gain.setValueAtTime(1, ctx.currentTime + start + dur * 0.5);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + start + dur);
+
+      osc.connect(gain);
+      gain.connect(masterGain);
+      osc.start(ctx.currentTime + start);
+      osc.stop(ctx.currentTime + start + dur);
+    });
+
+    setTimeout(() => { _chimePlaying = false; }, totalDur * 1000 + 100);
+  } catch (e) {
+    _chimePlaying = false;
+  }
+}
+
+/* ══════════════════════════════════════════════════════
+   REMINDER MODAL — standalone fixed overlay
+   ══════════════════════════════════════════════════════ */
+let _drAmPm    = 'AM';
+let _drSchedule = 'everyday';
+let _drEditId  = null;
+let _drHour = 9, _drMin = 0;
+
+// ── Drum-roll step handler ────────────────────────────
+function drDrumStep(drum, dir) {
+  if (drum === 'hour') {
+    _drHour = ((_drHour - 1 + dir + 12) % 12) + 1;
+    document.getElementById('dr-hour-display').textContent = _drHour;
+    document.getElementById('dr-hour').value = _drHour;
+  } else if (drum === 'min') {
+    _drMin = (_drMin + dir * 5 + 60) % 60;
+    document.getElementById('dr-min-display').textContent = String(_drMin).padStart(2,'0');
+    document.getElementById('dr-minute').value = _drMin;
+  } else if (drum === 'ampm') {
+    _drAmPm = _drAmPm === 'AM' ? 'PM' : 'AM';
+    document.getElementById('dr-ampm-display').textContent = _drAmPm;
+  }
+  drUpdatePreview();
+}
+
+function openDetailReminder(editData) {
+  _drEditId   = editData ? editData.id : null;
+  _drAmPm     = 'AM';
+  _drSchedule = 'everyday';
+
+  const titleEl = document.getElementById('dr-modal-title');
+  if (titleEl) titleEl.textContent = editData ? '✏ Edit Reminder' : '🔔 Add Reminder';
+
+  // Populate drum pickers
+  if (editData) {
+    const [hh, mm] = (editData.time || '09:00').split(':').map(Number);
+    _drHour = (hh % 12) || 12;
+    _drMin  = mm;
+    _drAmPm = hh < 12 ? 'AM' : 'PM';
+    document.getElementById('dr-label').value = editData.label || '';
+    if (editData.schedule && editData.schedule !== 'everyday') {
+      _drSchedule = 'specific';
+      document.getElementById('dr-specific-date').value = editData.schedule;
+    } else {
+      _drSchedule = 'everyday';
+    }
+  } else {
+    _drHour = 9; _drMin = 0; _drAmPm = 'AM';
+    document.getElementById('dr-label').value = '';
+    document.getElementById('dr-specific-date').value = new Date().toISOString().split('T')[0];
+    _drSchedule = 'everyday';
+  }
+
+  // Sync drum UI
+  document.getElementById('dr-hour-display').textContent  = _drHour;
+  document.getElementById('dr-min-display').textContent   = String(_drMin).padStart(2,'0');
+  document.getElementById('dr-ampm-display').textContent  = _drAmPm;
+  document.getElementById('dr-hour').value   = _drHour;
+  document.getElementById('dr-minute').value = _drMin;
+
+  drSetSchedule(_drSchedule);
+  drUpdatePreview();
+
+  const overlay = document.getElementById('detail-reminder-overlay');
+  overlay.style.display = 'flex';
+  overlay.setAttribute('aria-hidden', 'false');
+  document.body.style.overflow = 'hidden';
+  setTimeout(() => document.getElementById('dr-close-btn')?.focus(), 80);
+}
+
+function closeDetailReminder() {
+  const overlay = document.getElementById('detail-reminder-overlay');
+  if (!overlay) return;
+  overlay.style.display = 'none';
+  overlay.setAttribute('aria-hidden', 'true');
+  document.body.style.overflow = '';
+  _drEditId = null;
+}
+
+function drSetAmPm(val) { _drAmPm = val; drUpdatePreview(); } // compat
+
+function drSetSchedule(mode) {
+  _drSchedule = mode;
+  const evBtn   = document.getElementById('dr-sched-everyday');
+  const spBtn   = document.getElementById('dr-sched-specific');
+  const dateWrap = document.getElementById('dr-date-wrap');
+  if (!evBtn || !spBtn) return;
+  if (mode === 'everyday') {
+    evBtn.style.background = 'var(--indigo)'; evBtn.style.color = '#fff'; evBtn.style.borderColor = 'var(--indigo)';
+    spBtn.style.background = 'var(--bg3)';    spBtn.style.color = 'var(--text2)'; spBtn.style.borderColor = 'var(--border)';
+    dateWrap.style.display = 'none';
+  } else {
+    spBtn.style.background = 'var(--indigo)'; spBtn.style.color = '#fff'; spBtn.style.borderColor = 'var(--indigo)';
+    evBtn.style.background = 'var(--bg3)';    evBtn.style.color = 'var(--text2)'; evBtn.style.borderColor = 'var(--border)';
+    dateWrap.style.display = 'block';
+    setTimeout(() => document.getElementById('dr-specific-date')?.focus(), 50);
+  }
+}
+
+function drUpdatePreview() {
+  const el = document.getElementById('dr-time-preview');
+  if (el) el.textContent = `Will notify at ${_drHour}:${String(_drMin).padStart(2,'0')} ${_drAmPm}`;
+}
+
+function drTo24h() {
+  let h24 = _drHour % 12;
+  if (_drAmPm === 'PM') h24 += 12;
+  return `${String(h24).padStart(2,'0')}:${String(_drMin).padStart(2,'0')}`;
+}
+
+async function detailRequestPermission() {
+  if (!('Notification' in window)) return;
+  const perm = await Notification.requestPermission();
+  if (perm === 'granted') {
+    document.getElementById('detail-notif-banner').style.display = 'none';
+    showGlobalToast('Notifications enabled! 🔔');
+    startReminderPolling();
+  } else {
+    showGlobalToast('Notification permission denied — reminders may not fire', 'warn');
+  }
+}
+
+async function drSaveReminder() {
+  const h = parseInt(document.getElementById('dr-hour').value);
+  const m = parseInt(document.getElementById('dr-minute').value);
+  if (!h || h < 1 || h > 12) { showGlobalToast('Enter a valid hour (1–12)', 'warn'); return; }
+  if (isNaN(m) || m < 0 || m > 59) { showGlobalToast('Enter a valid minute (0–59)', 'warn'); return; }
+
+  let schedule = 'everyday';
+  if (_drSchedule === 'specific') {
+    schedule = document.getElementById('dr-specific-date').value;
+    if (!schedule) { showGlobalToast('Please select a specific date', 'warn'); return; }
+  }
+
+  const time24 = drTo24h();
+  const label  = document.getElementById('dr-label').value.trim();
+  const payload = { time: time24, schedule, label, enabled: true };
+
+  const btn = document.getElementById('dr-save-btn');
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+
+  try {
+    let url = `/api/habit/${HABIT_ID}/reminders`;
+    let method = 'POST';
+    if (_drEditId) { url += `/${_drEditId}`; method = 'PUT'; }
+
+    const resp = await fetch(url, {
+      method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+    });
+    const data = await resp.json();
+
+    if (data.status === 'ok') {
+      const h12 = _drHour;
+      const mStr = String(_drMin).padStart(2,'0');
+      const schedLabel = schedule === 'everyday' ? 'every day' : schedule;
+      showGlobalToast(`🔔 Reminder ${_drEditId ? 'updated' : 'set'} — ${h12}:${mStr} ${_drAmPm}, ${schedLabel}`);
+      closeDetailReminder();
+      loadReminders();
+      // Request permission if not yet granted
+      if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission().then(p => {
+          if (p === 'granted') startReminderPolling();
+        });
+      }
+    } else {
+      showGlobalToast('Could not save reminder — try again', 'error');
+    }
+  } catch(e) {
+    showGlobalToast('Network error — check connection', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🔔 Save Reminder';
+  }
+}
+
+/* ══════════════════════════════════════════════════════
+   REMINDER LIST — load & render
+   ══════════════════════════════════════════════════════ */
+async function loadReminders() {
+  const el = document.getElementById('reminders-list');
+  if (!el) return;
+  try {
+    const data = await fetch(`/api/habit/${HABIT_ID}/reminders`).then(r => r.json());
+    const reminders = data.reminders || [];
+
+    if (!reminders.length) {
+      el.innerHTML = `<div class="empty-sm" style="padding:16px 0">
+        No reminders set yet. Click <strong>+ Add Reminder</strong> to get notified at a specific time.</div>`;
+      return;
+    }
+
+    el.innerHTML = reminders.map(r => {
+      const [hh, mm] = (r.time || '09:00').split(':').map(Number);
+      const ampm = hh < 12 ? 'AM' : 'PM';
+      const h12  = (hh % 12) || 12;
+      const timeLabel = `${h12}:${String(mm).padStart(2,'0')} ${ampm}`;
+      const schedLabel = r.schedule === 'everyday' ? 'Every day' : r.schedule;
+      const encodedR = encodeURIComponent(JSON.stringify(r));
+
+      return `<div class="rem-item" id="rem-item-${r.id}">
+        <div class="rem-item-icon" style="background:${r.enabled ? 'var(--violet-soft)' : 'var(--bg3)'};
+          transition:background .3s">${r.enabled ? '🔔' : '🔕'}</div>
+        <div class="rem-item-body">
+          <div class="rem-item-time" style="color:${r.enabled ? 'var(--text)' : 'var(--text3)'}">${timeLabel}</div>
+          <div class="rem-item-meta">
+            ${schedLabel}${r.label ? ' · <em>' + r.label + '</em>' : ''}
+            ${!r.enabled ? ' <span style="color:var(--coral);font-weight:800">(disabled)</span>' : ''}
+          </div>
+        </div>
+        <div class="rem-item-actions">
+          <button class="rem-toggle-btn ${r.enabled ? 'rem-on' : 'rem-off'}"
+            onclick="toggleReminder(${r.id}, ${!r.enabled})"
+            title="${r.enabled ? 'Disable reminder' : 'Enable reminder'}">${r.enabled ? '🔔' : '🔕'}</button>
+          <button class="icon-btn" onclick="editReminder(${r.id})" title="Edit reminder">✏</button>
+          <button class="icon-btn icon-btn-danger" onclick="deleteReminder(${r.id})" title="Delete reminder">✕</button>
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    el.innerHTML = '<div class="empty-sm" style="color:var(--coral)">Could not load reminders. Refresh to try again.</div>';
+  }
+}
+
+// Store fetched reminders for edit
+let _fetchedReminders = [];
+async function editReminder(rid) {
+  try {
+    const data = await fetch(`/api/habit/${HABIT_ID}/reminders`).then(r => r.json());
+    _fetchedReminders = data.reminders || [];
+    const r = _fetchedReminders.find(x => x.id === rid);
+    if (r) openDetailReminder(r);
+  } catch(e) { showGlobalToast('Could not load reminder for editing', 'error'); }
+}
+
+async function toggleReminder(rid, enabled) {
+  try {
+    await fetch(`/api/habit/${HABIT_ID}/reminders/${rid}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled })
+    });
+    showGlobalToast(enabled ? '🔔 Reminder enabled' : '🔕 Reminder disabled');
+    loadReminders();
+  } catch(e) { showGlobalToast('Could not update reminder', 'error'); }
+}
+
+async function deleteReminder(rid) {
+  if (!confirm('Delete this reminder? This cannot be undone.')) return;
+  try {
+    await fetch(`/api/habit/${HABIT_ID}/reminders/${rid}`, { method: 'DELETE' });
+    showGlobalToast('Reminder deleted');
+    loadReminders();
+  } catch(e) { showGlobalToast('Could not delete reminder', 'error'); }
+}
+
+/* ══════════════════════════════════════════════════════
+   REMINDER POLLING — check every minute
+   ══════════════════════════════════════════════════════ */
+let _pollInterval = null;
+
+function startReminderPolling() {
+  if (_pollInterval) return; // already running
+  pollDueReminders();
+  _pollInterval = setInterval(pollDueReminders, 60000);
+}
+
+async function pollDueReminders() {
+  if (Notification.permission !== 'granted') return;
+  try {
+    const data = await fetch('/api/due-reminders').then(r => r.json());
+    for (const r of (data.reminders || [])) {
+      // Dedup key: per HH:MM per day — each reminder fires at most once per minute
+      const now  = new Date();
+      const hhmm = now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
+      const key  = `aurix_fired_${r.tag || r.id}_${now.toDateString()}_${hhmm}`;
+      if (sessionStorage.getItem(key)) continue;
+      sessionStorage.setItem(key, '1');
+
+      // Play chime (respects mute)
+      playDetailChime();
+
+      // Show notification
+      const tag = r.tag || ('rem_' + r.id);
+      if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({
+          type: 'SHOW_NOTIFICATION', title: r.title, body: r.body, url: r.url, tag
+        });
+      } else {
+        new Notification(r.title, { body: r.body, icon: '/static/favicon.svg', tag });
+      }
+
+      // Log to notification history
+      fetch('/api/notifications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: r.title, body: r.body, type: 'reminder', url: r.url })
+      }).catch(() => {});
+    }
+  } catch(e) {}
+}
+
+/* ══════════════════════════════════════════════════════
+   INIT
+   ══════════════════════════════════════════════════════ */
+document.addEventListener('DOMContentLoaded', () => {
+  // Update sound button state
+  updateSoundBtn();
+
+  // Load reminders
+  loadReminders();
+
+  // Check/show notification permission banner
+  const banner = document.getElementById('detail-notif-banner');
+  if (banner) {
+    if ('Notification' in window && Notification.permission !== 'granted') {
+      banner.style.display = 'block';
+    }
+  }
+
+  // Start polling if permission already granted
+  if ('Notification' in window && Notification.permission === 'granted') {
+    startReminderPolling();
+  }
+
+  // ── Overlay close handlers ──
+  const overlay = document.getElementById('detail-reminder-overlay');
+  if (overlay) {
+    // Background click
+    overlay.addEventListener('click', function(e) {
+      if (e.target === this) closeDetailReminder();
+    });
+  }
+
+  // Close button
+  document.getElementById('dr-close-btn')?.addEventListener('click', closeDetailReminder);
+  document.getElementById('dr-cancel-btn')?.addEventListener('click', closeDetailReminder);
+
+  // Escape key
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+      const ov = document.getElementById('detail-reminder-overlay');
+      if (ov && ov.style.display !== 'none') {
+        e.stopPropagation();
+        closeDetailReminder();
+      }
+    }
+  });
+
+  // Drum pickers: touch/swipe support
+  addDrumSwipe('dr-hour-display',  d => drDrumStep('hour', d));
+  addDrumSwipe('dr-min-display',   d => drDrumStep('min',  d));
+  addDrumSwipe('dr-ampm-display',  d => drDrumStep('ampm', d));
+
+  // Debug panel init
+  dbgCheckStatus();
+});
+
+
+/* ══════════════════════════════════════════════════════
+   DEBUG / TEST PANEL
+   ══════════════════════════════════════════════════════ */
+let _debugVisible = true;
+
+function toggleDebugPanel() {
+  _debugVisible = !_debugVisible;
+  document.getElementById('debug-panel-body').style.display = _debugVisible ? '' : 'none';
+  document.getElementById('debug-toggle-btn').textContent = _debugVisible ? 'Hide' : 'Show';
+}
+
+function dbgLog(msg, type = 'info') {
+  const el = document.getElementById('dbg-log');
+  if (!el) return;
+  const colors = { info: 'var(--text2)', ok: 'var(--emerald)', warn: 'var(--amber)', error: 'var(--coral)' };
+  const now = new Date().toLocaleTimeString();
+  const line = document.createElement('div');
+  line.style.color = colors[type] || colors.info;
+  line.textContent = `[${now}] ${msg}`;
+  el.insertBefore(line, el.firstChild);
+  // Keep max 30 lines
+  while (el.children.length > 30) el.removeChild(el.lastChild);
+}
+
+function setStatusPill(id, text, state) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.textContent = text;
+  el.className = 'dbg-status-pill ' + (
+    state === 'ok'      ? 'dbg-pill-ok' :
+    state === 'warn'    ? 'dbg-pill-warn' :
+    state === 'error'   ? 'dbg-pill-error' :
+                          'dbg-pill-unknown'
+  );
+}
+
+async function dbgCheckStatus() {
+  dbgLog('Checking system status…');
+
+  // 1. Notification permission
+  if (!('Notification' in window)) {
+    setStatusPill('dbg-notif-status', '❌ Notifications not supported', 'error');
+    dbgLog('Notifications not supported in this browser', 'error');
+  } else {
+    const p = Notification.permission;
+    setStatusPill('dbg-notif-status',
+      p === 'granted'  ? '✅ Notifications: granted'  :
+      p === 'denied'   ? '❌ Notifications: denied'   :
+                         '⚠ Notifications: not asked',
+      p === 'granted' ? 'ok' : p === 'denied' ? 'error' : 'warn');
+    dbgLog(`Notification permission: ${p}`, p === 'granted' ? 'ok' : 'warn');
+  }
+
+  // 2. Service Worker
+  if (!('serviceWorker' in navigator)) {
+    setStatusPill('dbg-sw-status', '❌ SW: Not supported', 'error');
+    dbgLog('Service Workers not supported', 'error');
+  } else {
+    const reg = await navigator.serviceWorker.getRegistration('/').catch(() => null);
+    if (reg) {
+      const state = reg.active ? 'active' : reg.installing ? 'installing' : 'waiting';
+      setStatusPill('dbg-sw-status', `✅ SW: ${state} (scope: ${reg.scope})`, 'ok');
+      dbgLog(`SW registered — scope: ${reg.scope}, state: ${state}`, 'ok');
+    } else {
+      setStatusPill('dbg-sw-status', '⚠ SW: Not registered at /', 'warn');
+      dbgLog('SW not registered at / scope — notifications may not work when app is closed', 'warn');
+    }
+  }
+
+  // 3. Poll status
+  if (_pollInterval) {
+    setStatusPill('dbg-poll-status', '✅ Poll: Running (60s)', 'ok');
+    dbgLog('Reminder poll is running', 'ok');
+  } else {
+    setStatusPill('dbg-poll-status', '⚠ Poll: Stopped', 'warn');
+    dbgLog('Reminder poll not running — notifications require permission', 'warn');
+  }
+
+  // 4. Check server-side reminder status
+  try {
+    const d = await fetch(`/api/reminder-status`).then(r => r.json());
+    dbgLog(`Server: ${d.total_reminders} reminders total, ${d.enabled_reminders} enabled, ${d.due_now} due now`, 'ok');
+    dbgLog(`Server time (IST): ${d.server_time_ist}`, 'info');
+    renderReminderTable(d.reminders || []);
+  } catch(e) {
+    dbgLog(`Could not fetch reminder status: ${e}`, 'error');
+  }
+}
+
+function renderReminderTable(reminders) {
+  const el = document.getElementById('dbg-reminder-table');
+  if (!el) return;
+  if (!reminders.length) {
+    el.innerHTML = '<div style="font-size:12px;color:var(--text3);font-weight:700;padding:4px 0">No reminders configured for this habit</div>';
+    return;
+  }
+  const filtered = reminders.filter(r => r.habit_id === HABIT_ID);
+  if (!filtered.length) {
+    el.innerHTML = '<div style="font-size:12px;color:var(--text3);font-weight:700;padding:4px 0">No reminders for this habit</div>';
+    return;
+  }
+  el.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:11px;margin-top:4px">
+    <thead><tr style="color:var(--text3);font-weight:800;text-align:left">
+      <th style="padding:4px 8px">Time</th>
+      <th style="padding:4px 8px">Schedule</th>
+      <th style="padding:4px 8px">Label</th>
+      <th style="padding:4px 8px">Enabled</th>
+      <th style="padding:4px 8px">Fires Today</th>
+      <th style="padding:4px 8px">Due Now</th>
+    </tr></thead>
+    <tbody>${filtered.map(r => `<tr style="border-top:1px solid var(--border)">
+      <td style="padding:4px 8px;font-weight:800;color:var(--text)">${r.time}</td>
+      <td style="padding:4px 8px;color:var(--text2)">${r.schedule}</td>
+      <td style="padding:4px 8px;color:var(--text3)">${r.label || '—'}</td>
+      <td style="padding:4px 8px;color:${r.enabled ? 'var(--emerald)' : 'var(--coral)'}">${r.enabled ? '✅' : '❌'}</td>
+      <td style="padding:4px 8px;color:${r.fires_today ? 'var(--emerald)' : 'var(--text3)'}">${r.fires_today ? '✅' : '—'}</td>
+      <td style="padding:4px 8px;color:${r.is_due_now ? 'var(--amber)' : 'var(--text3)'};">${r.is_due_now ? '⚡ DUE!' : '—'}</td>
+    </tr>`).join('')}</tbody>
+  </table>`;
+}
+
+async function dbgRequestPermission() {
+  dbgLog('Requesting notification permission…');
+  await detailRequestPermission();   // defined above — requests and starts polling
+  dbgCheckStatus();
+}
+
+async function dbgTestNotification() {
+  dbgLog('Sending test notification…');
+  if (Notification.permission !== 'granted') {
+    dbgLog('Permission not granted — requesting…', 'warn');
+    await detailRequestPermission();
+    if (Notification.permission !== 'granted') return;
+  }
+  try {
+    // Log to server first
+    const resp = await fetch('/api/test-notification', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        title: '🔔 AURIX Test',
+        body:  `Reminder system working! Habit: {{ habit.name }}`,
+        url:   `/habit/${HABIT_ID}`
+      })
+    });
+    const d = await resp.json();
+    dbgLog('Server logged test notification ✅', 'ok');
+    // Show it via SW or Notification API
+    await showBrowserNotification(
+      d.notification.title,
+      d.notification.body,
+      d.notification.url,
+      d.notification.tag
+    );
+    dbgLog('Browser notification sent ✅', 'ok');
+    showGlobalToast('Test notification sent!');
+    // Refresh badge
+    fetch('/api/notifications').then(r=>r.json()).then(nd =>
+      updateNotifBadge((nd.notifications||[]).filter(n=>!n.read).length)
+    );
+  } catch(e) {
+    dbgLog(`Error: ${e}`, 'error');
+    showGlobalToast('Test notification failed', 'error');
+  }
+}
+
+async function dbgTestSound() {
+  dbgLog('Playing chime…');
+  if (localStorage.getItem('aurix_muted') === '1') {
+    dbgLog('Sound is muted — unmuting temporarily', 'warn');
+    localStorage.removeItem('aurix_muted');
+    updateSoundBtn();
+  }
+  playDetailChime();
+  dbgLog('Chime played ✅', 'ok');
+}
+
+async function dbgTriggerNow() {
+  dbgLog(`Triggering test reminder for habit #${HABIT_ID}…`);
+  if (Notification.permission !== 'granted') {
+    await detailRequestPermission();
+    if (Notification.permission !== 'granted') return;
+  }
+  try {
+    const resp = await fetch('/api/test-reminder-1min', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ habit_id: HABIT_ID, habit_name: '{{ habit.name|replace("'", "\'") }}' })
+    });
+    const d = await resp.json();
+    dbgLog('Test reminder payload received from server', 'ok');
+    for (const r of (d.reminders || [])) {
+      playDetailChime();
+      await showBrowserNotification(r.title, r.body, r.url, r.tag);
+      dbgLog(`Notification shown: "${r.title}"`, 'ok');
+      // Log to history
+      fetch('/api/notifications', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ title: r.title, body: r.body, type: 'reminder', url: r.url })
+      });
+    }
+    showGlobalToast('⚡ Test reminder triggered!');
+  } catch(e) {
+    dbgLog(`Error: ${e}`, 'error');
+  }
+}
+</script>
+
+<style>
+@keyframes drSlideIn {
+  from { opacity:0; transform:scale(0.90) translateY(16px); }
+  to   { opacity:1; transform:scale(1)   translateY(0); }
+}
+.btn-reminder-header {
+  background: linear-gradient(135deg, var(--violet), var(--indigo));
+  color: #fff;
+  border: none;
+  padding: 9px 18px;
+  border-radius: 22px;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all var(--transition);
+  box-shadow: 0 4px 12px rgba(124,58,237,.3);
+  font-family: var(--font);
+}
+.btn-reminder-header:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(124,58,237,.4);
+  filter: brightness(1.08);
+}
+[data-theme="dark"] #detail-reminder-box {
+  background: #1a2030;
+  border-color: #2a3348;
+}
+[data-theme="dark"] #dr-header {
+  background: #111827;
+  border-color: #2a3348;
+}
+[data-theme="dark"] #dr-hour,
+[data-theme="dark"] #dr-minute {
+  color: #e8edf5;
+}
+</style>
+{% endblock %}
