@@ -1,0 +1,654 @@
+{% extends "base.html" %}
+{% block title %}Thoughts — AURIX{% endblock %}
+{% block topbar_title %}Thoughts{% endblock %}
+
+{% block content %}
+
+<!-- Pass all thoughts as JSON for client-side live search/sort/filter -->
+<script id="thoughts-data" type="application/json">
+[{% for t in thoughts %}{
+  "id": {{ t.id }},
+  "title": {{ t.title | tojson }},
+  "content": {{ t.content | tojson }},
+  "type": {{ t.type | tojson }},
+  "mood": {{ (t.mood or '') | tojson }},
+  "date": {{ t.date | tojson }},
+  "created_at": {{ (t.created_at or t.date) | tojson }},
+  "pinned": {{ 'true' if t.pinned else 'false' }},
+  "favorite": {{ 'true' if t.favorite else 'false' }},
+  "tags": {{ t.tags | tojson }},
+  "views": {{ t.get('views', 0) if t is mapping else 0 }}
+}{% if not loop.last %},{% endif %}{% endfor %}]
+</script>
+
+<div class="page-header">
+  <div>
+    <h1 class="page-title">💭 Thoughts</h1>
+    <p class="page-sub" id="thoughts-count-label">{{ all_thoughts_count }} thought{{ 's' if all_thoughts_count != 1 }} — capture ideas, reflections, and insights</p>
+  </div>
+  <div class="thoughts-header-actions">
+    <button class="btn-search-filter" id="btn-open-search" onclick="openSearchModal()" title="Search & Filter">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      <span class="btn-search-filter-label">Filter</span>
+      <span class="search-active-dot" id="search-active-dot" style="display:none"></span>
+    </button>
+    <button class="btn-primary" onclick="openModal('modal-add-thought')">+ New Thought</button>
+  </div>
+</div>
+
+<!-- Thoughts List (full-width, no side column) -->
+<div class="thoughts-list-col">
+  <div id="thoughts-grid" class="thoughts-grid">
+    <!-- Rendered by JS -->
+  </div>
+  <div id="thoughts-empty" class="empty-state" style="display:none">
+    <div class="empty-icon">💭</div>
+    <div class="empty-title">No thoughts found</div>
+    <div class="empty-sub">Try a different search or filter, or capture a new thought</div>
+    <button class="btn-primary" onclick="openModal('modal-add-thought')">+ Add Thought</button>
+  </div>
+</div>
+
+<!-- ── SEARCH / FILTER MODAL ──────────────────────────── -->
+<div id="search-filter-overlay" class="sf-overlay" onclick="closeSearchModal(event)">
+  <div class="sf-modal" id="search-filter-modal">
+    <div class="sf-header">
+      <span class="sf-title">🔍 Search & Filter</span>
+      <button class="td-close-btn" onclick="closeSearchModal()">✕</button>
+    </div>
+    <div class="sf-body">
+      <!-- Search -->
+      <div class="sf-section">
+        <label class="sf-label">Search</label>
+        <div class="sf-search-wrap">
+          <svg class="sf-search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <input
+            type="text"
+            id="thought-search"
+            class="sf-search-input"
+            placeholder="Search by title, content, or tag…"
+            oninput="applyFilters()"
+            autocomplete="off"
+          />
+          <button class="sf-clear-btn" id="sf-clear" onclick="clearSearch()" style="display:none" title="Clear">✕</button>
+        </div>
+      </div>
+
+      <!-- Filter by type -->
+      <div class="sf-section">
+        <label class="sf-label">Filter by Type</label>
+        <div class="sf-chip-row" id="sf-type-chips">
+          <button class="sf-chip sf-chip-active" data-value="" onclick="setTypeFilter(this, '')">All</button>
+          <button class="sf-chip" data-value="Thought" onclick="setTypeFilter(this, 'Thought')">💭 Thought</button>
+          <button class="sf-chip" data-value="Journal" onclick="setTypeFilter(this, 'Journal')">📓 Journal</button>
+          <button class="sf-chip" data-value="Idea" onclick="setTypeFilter(this, 'Idea')">💡 Idea</button>
+          <button class="sf-chip" data-value="Reflection" onclick="setTypeFilter(this, 'Reflection')">🔮 Reflection</button>
+          <button class="sf-chip" data-value="Quote" onclick="setTypeFilter(this, 'Quote')">💬 Quote</button>
+        </div>
+        <input type="hidden" id="filter-type" value="">
+      </div>
+
+      <!-- Sort -->
+      <div class="sf-section">
+        <label class="sf-label">Sort By</label>
+        <div class="sf-chip-row" id="sf-sort-chips">
+          <button class="sf-chip sf-chip-active" data-value="newest" onclick="setSortFilter(this, 'newest')">🕐 Newest</button>
+          <button class="sf-chip" data-value="oldest" onclick="setSortFilter(this, 'oldest')">📅 Oldest</button>
+          <button class="sf-chip" data-value="title" onclick="setSortFilter(this, 'title')">🔤 A → Z</button>
+          <button class="sf-chip" data-value="pinned" onclick="setSortFilter(this, 'pinned')">📌 Pinned</button>
+        </div>
+        <input type="hidden" id="sort-by" value="newest">
+      </div>
+
+      {% if all_tags %}
+      <!-- Filter by tag -->
+      <div class="sf-section">
+        <label class="sf-label">Filter by Tag</label>
+        <div class="sf-chip-row">
+          {% for tag in all_tags %}
+          <button class="sf-chip sf-tag-chip" onclick="filterByTagModal('{{ tag }}')">
+            #{{ tag }}
+          </button>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Actions -->
+      <div class="sf-footer">
+        <button class="btn-secondary" onclick="resetFilters()">Reset All</button>
+        <button class="btn-primary" onclick="closeSearchModal()">Apply & Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── THOUGHT DETAIL MODAL ─────────────────────────── -->
+<div class="td-overlay" id="thought-detail-overlay">
+  <div class="td-modal" id="thought-detail-modal" onclick="event.stopPropagation()">
+    <div class="td-header">
+      <div class="td-header-meta">
+        <span class="td-type-badge" id="td-type-badge"></span>
+        <span class="td-mood" id="td-mood"></span>
+        <span class="td-pinned-badge" id="td-pinned-badge" style="display:none">📌 Pinned</span>
+      </div>
+      <div class="td-header-actions">
+        <button class="icon-btn td-action-btn" id="td-edit-btn" title="Edit thought">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          Edit
+        </button>
+        <button class="icon-btn icon-btn-danger td-action-btn" id="td-delete-btn" title="Delete thought">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+          Delete
+        </button>
+        <button class="td-close-btn" onclick="_doCloseDetail()">✕</button>
+      </div>
+    </div>
+    <div class="td-body">
+      <h2 class="td-title" id="td-title"></h2>
+      <div class="td-date-row">
+        <span class="td-date" id="td-date"></span>
+      </div>
+      <div class="td-content" id="td-content"></div>
+      <div class="td-tags" id="td-tags"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── ADD THOUGHT MODAL ──────────────────────────────── -->
+<div id="modal-add-thought" class="modal-content hidden">
+  <div class="modal-header"><h3>💭 New Thought</h3></div>
+  <form method="POST" action="/add-thought">
+    <div class="form-group">
+      <label>Title</label>
+      <input type="text" name="title" class="form-input" placeholder="Give it a title…" required/>
+    </div>
+    <div class="form-group">
+      <label>Content</label>
+      <textarea name="content" class="form-input thoughts-textarea" rows="6" placeholder="Write your thought…"></textarea>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Type</label>
+        <select name="type" class="form-input">
+          <option>Thought</option><option>Journal</option><option>Idea</option><option>Reflection</option><option>Quote</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Date</label>
+        <input type="date" name="date" value="{{ today }}" class="form-input"/>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Tags <span style="color:var(--text3);font-size:11px;text-transform:none;letter-spacing:0">(comma-separated)</span></label>
+      <input type="text" name="tags" class="form-input" placeholder="ideas, work, personal…"/>
+    </div>
+    <div class="form-group">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;text-transform:none;letter-spacing:0;font-size:13px;font-weight:600">
+        <input type="checkbox" name="pinned" style="width:16px;height:16px;accent-color:var(--indigo)"/>
+        <span>📌 Pin this thought</span>
+      </label>
+    </div>
+    <div class="form-actions">
+      <button type="button" class="btn-secondary" onclick="closeActiveModal()">Cancel</button>
+      <button type="submit" class="btn-primary">Save Thought</button>
+    </div>
+  </form>
+</div>
+
+<!-- ── EDIT THOUGHT MODAL ─────────────────────────────── -->
+<div id="modal-edit-thought" class="modal-content hidden">
+  <div class="modal-header"><h3>✏️ Edit Thought</h3></div>
+  <form method="POST" id="edit-thought-form" action="/edit-thought/0">
+    <div class="form-group">
+      <label>Title</label>
+      <input type="text" name="title" id="edit-title" class="form-input" required/>
+    </div>
+    <div class="form-group">
+      <label>Content</label>
+      <textarea name="content" id="edit-content" class="form-input thoughts-textarea" rows="6"></textarea>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Type</label>
+        <select name="type" id="edit-type" class="form-input">
+          <option value="Thought">Thought</option>
+          <option value="Journal">Journal</option>
+          <option value="Idea">Idea</option>
+          <option value="Reflection">Reflection</option>
+          <option value="Quote">Quote</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Date</label>
+        <input type="date" name="date" id="edit-date" class="form-input"/>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Tags <span style="color:var(--text3);font-size:11px;text-transform:none;letter-spacing:0">(comma-separated)</span></label>
+      <input type="text" name="tags" id="edit-tags" class="form-input"/>
+    </div>
+    <div class="form-group">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;text-transform:none;letter-spacing:0;font-size:13px;font-weight:600">
+        <input type="checkbox" name="pinned" id="edit-pinned" style="width:16px;height:16px;accent-color:var(--indigo)"/>
+        <span>📌 Pin this thought</span>
+      </label>
+    </div>
+    <div class="form-actions">
+      <button type="button" class="btn-secondary" onclick="closeActiveModal()">Cancel</button>
+      <button type="submit" class="btn-primary">Update Thought</button>
+    </div>
+  </form>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+/* ══ THOUGHTS DATA + STATE ══════════════════════════════════════ */
+const _allThoughts = JSON.parse(document.getElementById('thoughts-data').textContent || '[]');
+let _filtered = [];
+let _currentDetailId = null;
+let _activeTypeFilter = '';
+let _activeSortFilter = 'newest';
+
+const typeIcons = {
+  'Thought': '💭', 'Journal': '📓', 'Idea': '💡', 'Reflection': '🔮', 'Quote': '💬'
+};
+
+/* ══ INIT ════════════════════════════════════════════════════════ */
+document.addEventListener('DOMContentLoaded', () => {
+  applyFilters();
+
+  // Wire overlay click to close detail modal (click on backdrop only)
+  const detailOverlay = document.getElementById('thought-detail-overlay');
+  if (detailOverlay) {
+    detailOverlay.addEventListener('click', function(e) {
+      if (e.target === this) _doCloseDetail();
+    });
+  }
+
+  // Keyboard shortcuts
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      if (document.getElementById('thought-detail-overlay').classList.contains('td-visible')) {
+        _doCloseDetail();
+      } else if (document.getElementById('search-filter-overlay').classList.contains('sf-visible')) {
+        closeSearchModal();
+      }
+    }
+  });
+
+  // Search input escape key clear
+  const inp = document.getElementById('thought-search');
+  if (inp) {
+    inp.addEventListener('keydown', e => {
+      if (e.key === 'Escape') clearSearch();
+    });
+  }
+});
+
+/* ══ SEARCH MODAL ════════════════════════════════════════════════ */
+function openSearchModal() {
+  const overlay = document.getElementById('search-filter-overlay');
+  const modal = document.getElementById('search-filter-modal');
+  overlay.classList.add('sf-visible');
+  document.body.style.overflow = 'hidden';
+  modal.classList.remove('sf-modal-out');
+  modal.classList.add('sf-modal-in');
+  // Focus search input
+  setTimeout(() => {
+    const inp = document.getElementById('thought-search');
+    if (inp) inp.focus();
+  }, 120);
+}
+
+function closeSearchModal(e) {
+  if (e && e.target !== document.getElementById('search-filter-overlay')) return;
+  _doCloseSearch();
+}
+
+function _doCloseSearch() {
+  const overlay = document.getElementById('search-filter-overlay');
+  const modal = document.getElementById('search-filter-modal');
+  modal.classList.remove('sf-modal-in');
+  modal.classList.add('sf-modal-out');
+  setTimeout(() => {
+    overlay.classList.remove('sf-visible');
+    document.body.style.overflow = '';
+    modal.classList.remove('sf-modal-out');
+  }, 240);
+}
+
+function setTypeFilter(btn, value) {
+  _activeTypeFilter = value;
+  document.getElementById('filter-type').value = value;
+  document.querySelectorAll('#sf-type-chips .sf-chip').forEach(c => c.classList.remove('sf-chip-active'));
+  btn.classList.add('sf-chip-active');
+  applyFilters();
+  updateSearchActiveDot();
+}
+
+function setSortFilter(btn, value) {
+  _activeSortFilter = value;
+  document.getElementById('sort-by').value = value;
+  document.querySelectorAll('#sf-sort-chips .sf-chip').forEach(c => c.classList.remove('sf-chip-active'));
+  btn.classList.add('sf-chip-active');
+  applyFilters();
+}
+
+function filterByTagModal(tag) {
+  const inp = document.getElementById('thought-search');
+  if (inp) inp.value = tag;
+  applyFilters();
+  updateSearchActiveDot();
+  // Close modal and show results
+  _doCloseSearch();
+}
+
+function resetFilters() {
+  // Reset search
+  const inp = document.getElementById('thought-search');
+  if (inp) inp.value = '';
+  // Reset type
+  _activeTypeFilter = '';
+  document.getElementById('filter-type').value = '';
+  document.querySelectorAll('#sf-type-chips .sf-chip').forEach(c => c.classList.remove('sf-chip-active'));
+  const allChip = document.querySelector('#sf-type-chips .sf-chip[data-value=""]');
+  if (allChip) allChip.classList.add('sf-chip-active');
+  // Reset sort
+  _activeSortFilter = 'newest';
+  document.getElementById('sort-by').value = 'newest';
+  document.querySelectorAll('#sf-sort-chips .sf-chip').forEach(c => c.classList.remove('sf-chip-active'));
+  const newestChip = document.querySelector('#sf-sort-chips .sf-chip[data-value="newest"]');
+  if (newestChip) newestChip.classList.add('sf-chip-active');
+  applyFilters();
+  updateSearchActiveDot();
+}
+
+function updateSearchActiveDot() {
+  const inp = document.getElementById('thought-search');
+  const q = inp ? inp.value.trim() : '';
+  const hasFilter = q || _activeTypeFilter;
+  const dot = document.getElementById('search-active-dot');
+  if (dot) dot.style.display = hasFilter ? 'block' : 'none';
+  const sfClear = document.getElementById('sf-clear');
+  if (sfClear) sfClear.style.display = q ? 'flex' : 'none';
+}
+
+/* ══ FILTER / SORT / SEARCH ═════════════════════════════════════ */
+function applyFilters() {
+  const q      = (document.getElementById('thought-search').value || '').toLowerCase().trim();
+  const type   = document.getElementById('filter-type').value;
+  const sortBy = document.getElementById('sort-by').value;
+
+  updateSearchActiveDot();
+
+  let list = [..._allThoughts];
+
+  // Filter by type
+  if (type) list = list.filter(t => t.type === type);
+
+  // Live search
+  if (q) {
+    list = list.filter(t =>
+      t.title.toLowerCase().includes(q) ||
+      t.content.toLowerCase().includes(q) ||
+      (t.tags || []).some(tag => tag.toLowerCase().includes(q))
+    );
+  }
+
+  // Sort
+  switch (sortBy) {
+    case 'oldest':
+      list.sort((a, b) => (a.created_at || a.date) < (b.created_at || b.date) ? -1 : 1);
+      break;
+    case 'title':
+      list.sort((a, b) => a.title.localeCompare(b.title));
+      break;
+    case 'pinned':
+      list.sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
+      break;
+    default: // newest
+      list.sort((a, b) => (a.created_at || a.date) > (b.created_at || b.date) ? -1 : 1);
+  }
+
+  _filtered = list;
+  renderGrid(list);
+}
+
+function clearSearch() {
+  const inp = document.getElementById('thought-search');
+  if (inp) inp.value = '';
+  applyFilters();
+}
+
+/* ══ RENDER GRID ═════════════════════════════════════════════════ */
+function renderGrid(thoughts) {
+  const grid  = document.getElementById('thoughts-grid');
+  const empty = document.getElementById('thoughts-empty');
+  const label = document.getElementById('thoughts-count-label');
+
+  if (!thoughts.length) {
+    grid.innerHTML = '';
+    empty.style.display = 'flex';
+    if (label) label.textContent = 'No thoughts found — try adjusting filters';
+    return;
+  }
+  empty.style.display = 'none';
+  if (label) {
+    const total = _allThoughts.length;
+    const shown = thoughts.length;
+    label.textContent = shown === total
+      ? `${total} thought${total !== 1 ? 's' : ''} — capture ideas, reflections, and insights`
+      : `Showing ${shown} of ${total} thought${total !== 1 ? 's' : ''}`;
+  }
+
+  const pinned   = thoughts.filter(t => t.pinned);
+  const unpinned = thoughts.filter(t => !t.pinned);
+  let html = '';
+
+  if (pinned.length) {
+    html += `<div class="thoughts-section-label">📌 Pinned</div>`;
+    html += pinned.map(t => renderCard(t)).join('');
+  }
+  if (unpinned.length) {
+    if (pinned.length) html += `<div class="thoughts-section-label mt-8">All Thoughts</div>`;
+    html += unpinned.map(t => renderCard(t)).join('');
+  }
+
+  grid.innerHTML = html;
+
+  // Staggered entrance animation
+  requestAnimationFrame(() => {
+    grid.querySelectorAll('.thought-card').forEach((card, i) => {
+      card.style.animationDelay = `${i * 35}ms`;
+      card.classList.add('tc-animate-in');
+    });
+  });
+}
+
+function renderCard(t) {
+  const icon    = typeIcons[t.type] || '💭';
+  const preview = t.content.length > 200 ? t.content.slice(0, 200) + '…' : t.content;
+  const tagHtml = (t.tags || []).slice(0, 3).map(tag =>
+    `<span class="thought-tag">#${escHtml(tag)}</span>`
+  ).join('');
+  const dateStr = formatDate(t.date);
+
+  return `
+<div class="thought-card ${t.pinned ? 'thought-pinned' : ''}" onclick="openDetail(${t.id})" data-id="${t.id}">
+  <div class="thought-card-header">
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0">
+      <span class="thought-type-badge thought-type-${t.type.toLowerCase()}">${icon} ${escHtml(t.type)}</span>
+      ${t.mood ? `<span class="thought-mood">${escHtml(t.mood)}</span>` : ''}
+      ${t.favorite ? `<span style="color:var(--amber);font-size:14px" title="Favourite">★</span>` : ''}
+    </div>
+    <div class="thought-card-actions" onclick="event.stopPropagation()">
+      <button class="icon-btn" title="Edit thought" onclick="editThoughtById(${t.id})">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      </button>
+      <button class="icon-btn icon-btn-danger" title="Delete thought" onclick="deleteThoughtById(${t.id})">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+      </button>
+    </div>
+  </div>
+  <div class="thought-title">${escHtml(t.title)}</div>
+  ${preview ? `<div class="thought-preview">${escHtml(preview)}</div>` : ''}
+  <div class="thought-footer">
+    <span class="thought-date">📅 ${dateStr}</span>
+    ${tagHtml}
+  </div>
+</div>`;
+}
+
+/* ══ DETAIL MODAL ════════════════════════════════════════════════ */
+function openDetail(id) {
+  const t = _allThoughts.find(x => x.id === id);
+  if (!t) return;
+  _currentDetailId = id;
+
+  // Populate
+  const badge = document.getElementById('td-type-badge');
+  badge.textContent = (typeIcons[t.type] || '💭') + ' ' + t.type;
+  badge.className = `td-type-badge thought-type-badge thought-type-${t.type.toLowerCase()}`;
+
+  document.getElementById('td-mood').textContent = t.mood || '';
+  document.getElementById('td-pinned-badge').style.display = t.pinned ? 'inline-flex' : 'none';
+  document.getElementById('td-title').textContent = t.title;
+  document.getElementById('td-date').textContent = '📅 ' + formatDateLong(t.created_at || t.date);
+
+  // Content with newlines preserved
+  const contentEl = document.getElementById('td-content');
+  contentEl.textContent = t.content || '(no content)';
+
+  // Tags
+  const tagsEl = document.getElementById('td-tags');
+  tagsEl.innerHTML = (t.tags || []).map(tag =>
+    `<span class="thought-tag" style="cursor:pointer" onclick="_doCloseDetail();setTimeout(()=>{filterByTagModal('${escAttr(tag)}')},50)">#${escHtml(tag)}</span>`
+  ).join('');
+
+  // Wire edit/delete buttons
+  document.getElementById('td-edit-btn').onclick = () => {
+    _doCloseDetail();
+    setTimeout(() => editThoughtById(id), 260);
+  };
+  document.getElementById('td-delete-btn').onclick = () => {
+    if (!confirm('Delete this thought? This cannot be undone.')) return;
+    _doCloseDetail();
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = `/delete-thought/${t.id}`;
+    document.body.appendChild(form);
+    form.submit();
+  };
+
+  // Show overlay
+  const overlay = document.getElementById('thought-detail-overlay');
+  const modal   = document.getElementById('thought-detail-modal');
+
+  // Reset animation state
+  modal.classList.remove('td-modal-out', 'td-modal-in');
+
+  overlay.classList.add('td-visible');
+  document.body.style.overflow = 'hidden';
+
+  // Force reflow before adding animation class
+  void modal.offsetWidth;
+  modal.classList.add('td-modal-in');
+
+  // Scroll to top in case of re-open
+  modal.scrollTop = 0;
+}
+
+function closeDetailModal(e) {
+  // Only close when clicking the overlay backdrop (not the modal itself)
+  const overlay = document.getElementById('thought-detail-overlay');
+  if (e && e.target !== overlay) return;
+  _doCloseDetail();
+}
+
+function _doCloseDetail() {
+  const overlay = document.getElementById('thought-detail-overlay');
+  const modal   = document.getElementById('thought-detail-modal');
+  modal.classList.remove('td-modal-in');
+  modal.classList.add('td-modal-out');
+  setTimeout(() => {
+    overlay.classList.remove('td-visible');
+    document.body.style.overflow = '';
+    modal.classList.remove('td-modal-out');
+    _currentDetailId = null;
+  }, 260);
+}
+
+/* ══ EDIT THOUGHT ════════════════════════════════════════════════ */
+function editThoughtById(id) {
+  const t = _allThoughts.find(x => x.id === id);
+  if (!t) return;
+
+  // Set form action to correct update URL
+  document.getElementById('edit-thought-form').setAttribute('action', '/edit-thought/' + id);
+
+  document.getElementById('edit-title').value   = t.title || '';
+  document.getElementById('edit-content').value = t.content || '';
+  document.getElementById('edit-date').value    = t.date || '';
+  document.getElementById('edit-tags').value    = (t.tags || []).join(', ');
+  document.getElementById('edit-pinned').checked = !!t.pinned;
+
+  const typeEl = document.getElementById('edit-type');
+  for (let o of typeEl.options) {
+    o.selected = (o.value === t.type);
+  }
+
+  openModal('modal-edit-thought');
+}
+
+/* ══ DELETE THOUGHT (from card) ══════════════════════════════════ */
+function deleteThoughtById(id) {
+  const t = _allThoughts.find(x => x.id === id);
+  const name = t ? `"${t.title}"` : 'this thought';
+  if (!confirm(`Delete ${name}? This cannot be undone.`)) return;
+  const form = document.createElement('form');
+  form.method = 'POST';
+  form.action = `/delete-thought/${id}`;
+  document.body.appendChild(form);
+  form.submit();
+}
+
+/* ══ UTILITIES ═══════════════════════════════════════════════════ */
+function escHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function escAttr(str) {
+  return String(str || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"');
+}
+
+function formatDate(dateStr) {
+  if (!dateStr) return '';
+  try {
+    const d = new Date(dateStr + (dateStr.includes('T') ? '' : 'T00:00:00'));
+    return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+  } catch { return dateStr; }
+}
+
+function formatDateLong(dateStr) {
+  if (!dateStr) return '';
+  try {
+    const d = new Date(dateStr.includes('T') ? dateStr : dateStr + 'T00:00:00');
+    const opts = { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' };
+    let str = d.toLocaleDateString('en-IN', opts);
+    if (dateStr.includes('T')) {
+      str += ' · ' + d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+    }
+    return str;
+  } catch { return dateStr; }
+}
+</script>
+{% endblock %}
