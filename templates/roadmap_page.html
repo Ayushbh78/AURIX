@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Roadmap — AURIX</title>
+  <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}"/>
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&family=Nunito:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+  <link rel="manifest" href="/static/manifest.json"/>
+  <meta name="theme-color" content="#4338ca"/>
+  <meta name="mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <link rel="apple-touch-icon" href="/static/favicon.svg"/>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}"/>
+  <link rel="stylesheet" href="{{ url_for('static', filename='roadmap_page.css') }}"/>
+</head>
+<body class="roadmap-fullpage-body">
+
+<div class="rp-app" id="rp-app">
+
+  <!-- TOP BAR -->
+  <header class="rp-topbar">
+    <div class="rp-topbar-left">
+      <a href="/goals" class="rp-back-btn" title="Back to Goals">
+        <svg viewBox="0 0 20 20" fill="none" width="18" height="18">
+          <path d="M13 4L7 10L13 16" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span>Goals</span>
+      </a>
+      <div class="rp-divider"></div>
+      <div class="rp-topbar-title-area">
+        <div class="rp-topbar-label">ROADMAP</div>
+        <div class="rp-topbar-title" id="rp-goal-title">Loading…</div>
+      </div>
+    </div>
+    <div class="rp-topbar-right">
+      <!-- Progress pill -->
+      <div class="rp-progress-pill" id="rp-progress-pill">
+        <span class="rp-pill-done" id="rp-pill-done">0</span>
+        <span class="rp-pill-sep">/</span>
+        <span class="rp-pill-total" id="rp-pill-total">0</span>
+        <span class="rp-pill-label">stages</span>
+      </div>
+      <!-- Action Buttons -->
+      <button class="rp-action-btn rp-edit-btn" id="rp-edit-btn" onclick="openEditRoadmapModal()" title="Edit Roadmap">
+        <svg viewBox="0 0 20 20" fill="none" width="16" height="16">
+          <path d="M14.5 2.5a2.12 2.12 0 013 3L6 17H3v-3L14.5 2.5z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span>Edit</span>
+      </button>
+      <button class="rp-action-btn rp-delete-btn" id="rp-delete-btn" onclick="confirmDeleteRoadmap()" title="Delete All Stages">
+        <svg viewBox="0 0 20 20" fill="none" width="16" height="16">
+          <path d="M3 6h14M8 6V4h4v2M5 6l1 11h8l1-11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span>Delete</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- STATS BAR -->
+  <div class="rp-stats-bar" id="rp-stats-bar">
+    <div class="rp-stat">
+      <span class="rp-stat-num" id="rp-stat-total">0</span>
+      <span class="rp-stat-lbl">Total</span>
+    </div>
+    <div class="rp-stat-divider"></div>
+    <div class="rp-stat">
+      <span class="rp-stat-num rp-stat-done" id="rp-stat-done">0</span>
+      <span class="rp-stat-lbl">Completed</span>
+    </div>
+    <div class="rp-stat-divider"></div>
+    <div class="rp-stat">
+      <span class="rp-stat-num rp-stat-rem" id="rp-stat-remaining">0</span>
+      <span class="rp-stat-lbl">Remaining</span>
+    </div>
+    <div class="rp-stat-divider"></div>
+    <div class="rp-stat">
+      <span class="rp-stat-num rp-stat-pct" id="rp-stat-pct">0%</span>
+      <span class="rp-stat-lbl">Progress</span>
+    </div>
+    <!-- Progress bar inline -->
+    <div class="rp-progress-track">
+      <div class="rp-progress-fill" id="rp-progress-fill"></div>
+    </div>
+  </div>
+
+  <!-- ADD STAGE FORM -->
+  <div class="rp-add-bar">
+    <div class="rp-add-fields">
+      <input type="text" id="rp-new-title" class="rp-input" placeholder="Add new stage…" maxlength="120"
+             onkeydown="if(event.key==='Enter'){event.preventDefault();rpAddStage()}"/>
+      <input type="text" id="rp-new-desc" class="rp-input rp-input-desc" placeholder="Optional description…" maxlength="250"
+             onkeydown="if(event.key==='Enter'){event.preventDefault();rpAddStage()}"/>
+    </div>
+    <button class="rp-add-btn" onclick="rpAddStage()">
+      <svg viewBox="0 0 20 20" fill="none" width="16" height="16">
+        <path d="M10 4v12M4 10h12" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+      </svg>
+      Add Stage
+    </button>
+  </div>
+
+  <!-- MAIN SNAKE ROADMAP AREA -->
+  <main class="rp-main" id="rp-main">
+    <!-- Loading state -->
+    <div class="rp-loading" id="rp-loading">
+      <div class="rp-spinner"></div>
+      <span>Loading roadmap…</span>
+    </div>
+
+    <!-- Empty state -->
+    <div class="rp-empty" id="rp-empty" style="display:none">
+      <div class="rp-empty-icon">🗺</div>
+      <div class="rp-empty-title">No stages yet</div>
+      <div class="rp-empty-sub">Add your first stage above to start mapping your journey</div>
+    </div>
+
+    <!-- Snake road -->
+    <div class="rp-snake-road" id="rp-snake-road"></div>
+  </main>
+</div>
+
+<!-- ═══════════════════ EDIT ROADMAP MODAL ═══════════════════ -->
+<div class="rp-modal-overlay hidden" id="rp-edit-modal-overlay" onclick="if(event.target===this)closeEditRoadmapModal()">
+  <div class="rp-modal" id="rp-edit-modal">
+    <div class="rp-modal-header">
+      <div class="rp-modal-title">
+        <svg viewBox="0 0 20 20" fill="none" width="18" height="18">
+          <path d="M14.5 2.5a2.12 2.12 0 013 3L6 17H3v-3L14.5 2.5z" stroke="var(--violet)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        Edit Roadmap
+      </div>
+      <button class="rp-modal-close" onclick="closeEditRoadmapModal()">✕</button>
+    </div>
+    <div class="rp-modal-body">
+      <p class="rp-modal-hint">Edit stage titles, descriptions, or reorder them. Changes are saved when you click Save.</p>
+      <div class="rp-edit-stages-list" id="rp-edit-stages-list">
+        <!-- dynamically populated -->
+      </div>
+    </div>
+    <div class="rp-modal-footer">
+      <button class="rp-btn-secondary" onclick="closeEditRoadmapModal()">Cancel</button>
+      <button class="rp-btn-primary" onclick="saveEditRoadmap()">
+        <svg viewBox="0 0 20 20" fill="none" width="14" height="14">
+          <path d="M4 10l5 5 8-8" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        Save All
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ DELETE CONFIRM MODAL ═══════════════════ -->
+<div class="rp-modal-overlay hidden" id="rp-delete-modal-overlay" onclick="if(event.target===this)closeDeleteModal()">
+  <div class="rp-modal rp-modal-sm" id="rp-delete-modal">
+    <div class="rp-modal-header">
+      <div class="rp-modal-title rp-modal-danger">
+        <svg viewBox="0 0 20 20" fill="none" width="18" height="18">
+          <path d="M3 6h14M8 6V4h4v2M5 6l1 11h8l1-11" stroke="var(--rose)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        Delete Roadmap
+      </div>
+      <button class="rp-modal-close" onclick="closeDeleteModal()">✕</button>
+    </div>
+    <div class="rp-modal-body">
+      <p class="rp-modal-hint" style="color:var(--text)">Are you sure you want to delete <strong>all stages</strong> from this roadmap? This cannot be undone.</p>
+    </div>
+    <div class="rp-modal-footer">
+      <button class="rp-btn-secondary" onclick="closeDeleteModal()">Cancel</button>
+      <button class="rp-btn-danger" onclick="executeDeleteAllStages()">Delete All Stages</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ STAGE EDIT INLINE MODAL ═══════════════════ -->
+<div class="rp-modal-overlay hidden" id="rp-stage-edit-overlay" onclick="if(event.target===this)closeStageEditModal()">
+  <div class="rp-modal rp-modal-sm" id="rp-stage-edit-modal">
+    <div class="rp-modal-header">
+      <div class="rp-modal-title">Edit Stage</div>
+      <button class="rp-modal-close" onclick="closeStageEditModal()">✕</button>
+    </div>
+    <div class="rp-modal-body">
+      <div class="rp-form-group">
+        <label class="rp-form-label">Stage Title *</label>
+        <input type="text" id="rp-stage-edit-title" class="rp-input" placeholder="Stage title…" maxlength="120"
+               onkeydown="if(event.key==='Enter'){saveStageEdit()}"/>
+      </div>
+      <div class="rp-form-group">
+        <label class="rp-form-label">Description</label>
+        <input type="text" id="rp-stage-edit-desc" class="rp-input rp-input-desc" placeholder="Optional description…" maxlength="250"
+               onkeydown="if(event.key==='Enter'){saveStageEdit()}"/>
+      </div>
+    </div>
+    <div class="rp-modal-footer">
+      <button class="rp-btn-secondary" onclick="closeStageEditModal()">Cancel</button>
+      <button class="rp-btn-primary" onclick="saveStageEdit()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="rp-toast" id="rp-toast"></div>
+
+<script>
+// ─── State ────────────────────────────────────────────────────
+const GOAL_ID = {{ gid }};
+let _rpData = null;
+let _editSid = null;
+
+// ─── Init ────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  loadRoadmap();
+  // Theme from localStorage
+  const savedTheme = localStorage.getItem('theme') || 'dark';
+  document.documentElement.setAttribute('data-theme', savedTheme);
+});
+
+// ─── Load ─────────────────────────────────────────────────────
+function loadRoadmap() {
+  showLoading(true);
+  fetch(`/roadmap/${GOAL_ID}`)
+    .then(r => r.json())
+    .then(d => {
+      _rpData = d;
+      showLoading(false);
+      renderRoadmap(d);
+    })
+    .catch(() => {
+      showLoading(false);
+      showToast('Error loading roadmap', 'error');
+    });
+}
+
+function showLoading(on) {
+  const el = document.getElementById('rp-loading');
+  if (el) el.style.display = on ? 'flex' : 'none';
+}
+
+// ─── Render ───────────────────────────────────────────────────
+function renderRoadmap(d) {
+  // Title
+  const titleEl = document.getElementById('rp-goal-title');
+  if (titleEl) titleEl.textContent = d.goal_title || 'Goal Roadmap';
+
+  // Stats
+  setEl('rp-stat-total', d.total || 0);
+  setEl('rp-stat-done', d.done || 0);
+  setEl('rp-stat-remaining', d.remaining || 0);
+  setEl('rp-stat-pct', (d.pct || 0) + '%');
+  setEl('rp-pill-done', d.done || 0);
+  setEl('rp-pill-total', d.total || 0);
+
+  // Progress bar
+  const fill = document.getElementById('rp-progress-fill');
+  if (fill) fill.style.width = Math.min(d.pct || 0, 100) + '%';
+
+  // Empty / snake
+  const empty = document.getElementById('rp-empty');
+  const snake = document.getElementById('rp-snake-road');
+  if (!d.stages || d.stages.length === 0) {
+    if (empty) empty.style.display = 'flex';
+    if (snake) snake.innerHTML = '';
+    return;
+  }
+  if (empty) empty.style.display = 'none';
+  if (snake) buildSnakeRoad(snake, d.stages, d.active_idx);
+}
+
+// ─── Snake Road Builder ───────────────────────────────────────
+function buildSnakeRoad(container, stages, activeIdx) {
+  container.innerHTML = '';
+
+  const ROW_SIZE = 3;
+  const rows = [];
+  for (let i = 0; i < stages.length; i += ROW_SIZE) {
+    rows.push(stages.slice(i, i + ROW_SIZE));
+  }
+
+  rows.forEach((rowStages, rowIdx) => {
+    const isEven = rowIdx % 2 === 0;
+    // Reverse display for odd rows (snake effect)
+    const displayStages = isEven ? rowStages : [...rowStages].reverse();
+
+    const row = document.createElement('div');
+    row.className = 'rp-road-row';
+
+    displayStages.forEach((s, colIdx) => {
+      const absIdx = rowIdx * ROW_SIZE + (isEven ? colIdx : (rowStages.length - 1 - colIdx));
+      const isActive = absIdx === activeIdx && !s.completed;
+      const isDone   = !!s.completed;
+      const isLastInRow = colIdx === displayStages.length - 1;
+
+      const nodeWrap = document.createElement('div');
+      nodeWrap.className = 'rp-road-node-wrap';
+      nodeWrap.id = 'rp-stage-' + s.id;
+      nodeWrap.style.animationDelay = (colIdx * 0.06 + rowIdx * 0.12) + 's';
+
+      // Build card HTML
+      const completedAt = s.completed_at
+        ? new Date(s.completed_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+        : '';
+
+      let stateLabel = '';
+      if (isDone) stateLabel = `<span class="rp-card-state rp-state-done">✓ Done${completedAt ? ' · ' + completedAt : ''}</span>`;
+      else if (isActive) stateLabel = `<span class="rp-card-state rp-state-active">▶ Active</span>`;
+      else stateLabel = `<span class="rp-card-state rp-state-pending">Stage ${absIdx + 1}</span>`;
+
+      nodeWrap.innerHTML = `
+        <div class="rp-stage-card ${isDone ? 'rp-card-done' : ''} ${isActive ? 'rp-card-active' : ''}">
+          <!-- Circular completion button (left) -->
+          <button class="rp-circle-btn ${isDone ? 'rp-circle-done' : ''} ${isActive ? 'rp-circle-active' : ''}"
+                  onclick="rpToggleStage(${s.id}, this)"
+                  title="${isDone ? 'Mark pending' : 'Mark complete'}">
+            <span class="rp-circle-num">${absIdx + 1}</span>
+            <span class="rp-circle-tick">
+              <svg viewBox="0 0 20 20" fill="none" width="18" height="18">
+                <polyline points="4,10 8,14 16,6" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </span>
+            <span class="rp-circle-dot"></span>
+          </button>
+
+          <!-- Card body (right) -->
+          <div class="rp-card-body ${isDone ? 'rp-body-done' : ''} ${isActive ? 'rp-body-active' : ''}">
+            <div class="rp-card-top">
+              <div class="rp-card-info">
+                ${stateLabel}
+                <div class="rp-card-title ${isDone ? 'rp-title-done' : ''}">${escHtml(s.title)}</div>
+                ${s.description ? `<div class="rp-card-desc">${escHtml(s.description)}</div>` : ''}
+              </div>
+              <div class="rp-card-actions">
+                <button class="rp-act-btn" onclick="openStageEdit(${s.id}, ${JSON.stringify(s.title)}, ${JSON.stringify(s.description||'')})" title="Edit">
+                  <svg viewBox="0 0 20 20" fill="none" width="12" height="12">
+                    <path d="M14.5 2.5a2.12 2.12 0 013 3L6 17H3v-3L14.5 2.5z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </button>
+                <button class="rp-act-btn rp-act-danger" onclick="rpDeleteStage(${s.id})" title="Delete">
+                  <svg viewBox="0 0 20 20" fill="none" width="12" height="12">
+                    <path d="M3 6h14M8 6V4h4v2M5 6l1 11h8l1-11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+
+      row.appendChild(nodeWrap);
+
+      // Horizontal connector between nodes (not after last in row)
+      if (!isLastInRow) {
+        const conn = document.createElement('div');
+        conn.className = 'rp-connector-h';
+        // Check if both this and next are done
+        const nextAbsIdx = rowIdx * ROW_SIZE + (isEven ? colIdx + 1 : (rowStages.length - 2 - colIdx));
+        const nextDone = stages[nextAbsIdx]?.completed;
+        conn.innerHTML = `
+          <svg viewBox="0 0 80 12" fill="none" xmlns="http://www.w3.org/2000/svg" width="80" height="12" preserveAspectRatio="none">
+            <line x1="0" y1="6" x2="80" y2="6"
+              stroke="${isDone && nextDone ? 'var(--emerald)' : isDone || isActive ? 'var(--violet)' : 'var(--border)'}"
+              stroke-width="2.5"
+              stroke-dasharray="7 5"
+              stroke-linecap="round"/>
+          </svg>
+        `;
+        row.appendChild(conn);
+      }
+    });
+
+    container.appendChild(row);
+
+    // Vertical curved connector between rows
+    if (rowIdx < rows.length - 1) {
+      const vWrap = document.createElement('div');
+      vWrap.className = `rp-connector-v-wrap ${isEven ? 'rp-conn-right' : 'rp-conn-left'}`;
+      const curRowLastDone = rowStages[rowStages.length - 1]?.completed;
+      const nextRowFirstIdx = (rowIdx + 1) * ROW_SIZE;
+      const nextRowFirstDone = stages[nextRowFirstIdx]?.completed;
+      const connColor = curRowLastDone && nextRowFirstDone ? 'var(--emerald)' : 'var(--violet)';
+
+      if (isEven) {
+        // Curve goes right → down → left
+        vWrap.innerHTML = `
+          <svg class="rp-curve-svg" viewBox="0 0 140 72" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M 8 8 Q 132 8 132 36 Q 132 64 8 64"
+              stroke="${connColor}" stroke-width="2.5" stroke-dasharray="8 6"
+              fill="none" stroke-linecap="round"/>
+            <circle cx="132" cy="36" r="4" fill="${connColor}" opacity="0.5"/>
+          </svg>
+        `;
+      } else {
+        // Curve goes left → down → right
+        vWrap.innerHTML = `
+          <svg class="rp-curve-svg" viewBox="0 0 140 72" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M 132 8 Q 8 8 8 36 Q 8 64 132 64"
+              stroke="${connColor}" stroke-width="2.5" stroke-dasharray="8 6"
+              fill="none" stroke-linecap="round"/>
+            <circle cx="8" cy="36" r="4" fill="${connColor}" opacity="0.5"/>
+          </svg>
+        `;
+      }
+      container.appendChild(vWrap);
+    }
+  });
+}
+
+// ─── Toggle Stage ─────────────────────────────────────────────
+function rpToggleStage(sid, btn) {
+  if (!GOAL_ID) return;
+  const circle = btn;
+  circle.classList.add('rp-completing');
+
+  fetch(`/roadmap/${GOAL_ID}/toggle-stage/${sid}`, { method: 'POST' })
+    .then(r => r.json())
+    .then(d => {
+      if (d.status === 'ok') {
+        loadRoadmap();
+        showToast(d.completed ? '✓ Stage completed!' : 'Stage marked pending', d.completed ? 'success' : 'info');
+      } else {
+        showToast('Error updating stage', 'error');
+      }
+    })
+    .catch(() => showToast('Error updating stage', 'error'));
+}
+
+// ─── Add Stage ────────────────────────────────────────────────
+function rpAddStage() {
+  const titleEl = document.getElementById('rp-new-title');
+  const descEl  = document.getElementById('rp-new-desc');
+  if (!titleEl) return;
+  const title = titleEl.value.trim();
+  if (!title) { titleEl.focus(); showToast('Enter a stage title', 'warn'); return; }
+  const desc = descEl ? descEl.value.trim() : '';
+
+  fetch(`/roadmap/${GOAL_ID}/add-stage`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title, description: desc })
+  })
+    .then(r => r.json())
+    .then(d => {
+      if (d.status === 'ok') {
+        titleEl.value = '';
+        if (descEl) descEl.value = '';
+        loadRoadmap();
+        showToast('Stage added ✓', 'success');
+      } else {
+        showToast(d.msg || 'Error adding stage', 'error');
+      }
+    })
+    .catch(() => showToast('Error adding stage', 'error'));
+}
+
+// ─── Delete Stage ─────────────────────────────────────────────
+function rpDeleteStage(sid) {
+  if (!confirm('Delete this stage?')) return;
+  const node = document.getElementById('rp-stage-' + sid);
+  if (node) {
+    node.style.transition = 'all 0.25s ease';
+    node.style.opacity = '0';
+    node.style.transform = 'scale(0.85)';
+  }
+  setTimeout(() => {
+    fetch(`/roadmap/${GOAL_ID}/delete-stage/${sid}`, { method: 'POST' })
+      .then(r => r.json())
+      .then(d => {
+        if (d.status === 'ok') {
+          loadRoadmap();
+          showToast('Stage deleted', 'success');
+        } else {
+          showToast('Error deleting stage', 'error');
+          loadRoadmap();
+        }
+      })
+      .catch(() => { showToast('Error deleting stage', 'error'); loadRoadmap(); });
+  }, 250);
+}
+
+// ─── Stage Edit Modal ─────────────────────────────────────────
+function openStageEdit(sid, title, desc) {
+  _editSid = sid;
+  const titleEl = document.getElementById('rp-stage-edit-title');
+  const descEl  = document.getElementById('rp-stage-edit-desc');
+  if (titleEl) { titleEl.value = title || ''; }
+  if (descEl)  { descEl.value  = desc  || ''; }
+  const ov = document.getElementById('rp-stage-edit-overlay');
+  if (ov) { ov.classList.remove('hidden'); setTimeout(() => titleEl && titleEl.focus(), 50); }
+}
+
+function closeStageEditModal() {
+  const ov = document.getElementById('rp-stage-edit-overlay');
+  if (ov) ov.classList.add('hidden');
+  _editSid = null;
+}
+
+function saveStageEdit() {
+  if (!_editSid) return;
+  const titleEl = document.getElementById('rp-stage-edit-title');
+  const descEl  = document.getElementById('rp-stage-edit-desc');
+  const title = titleEl ? titleEl.value.trim() : '';
+  if (!title) { if (titleEl) titleEl.focus(); showToast('Title required', 'warn'); return; }
+  const desc = descEl ? descEl.value.trim() : '';
+
+  fetch(`/roadmap/${GOAL_ID}/edit-stage/${_editSid}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title, description: desc })
+  })
+    .then(r => r.json())
+    .then(d => {
+      if (d.status === 'ok') {
+        closeStageEditModal();
+        loadRoadmap();
+        showToast('Stage updated ✓', 'success');
+      } else {
+        showToast(d.msg || 'Error saving', 'error');
+      }
+    })
+    .catch(() => showToast('Error saving stage', 'error'));
+}
+
+// ─── Edit Roadmap Modal (all stages) ─────────────────────────
+function openEditRoadmapModal() {
+  if (!_rpData || !_rpData.stages) { showToast('No stages to edit', 'warn'); return; }
+  const list = document.getElementById('rp-edit-stages-list');
+  if (!list) return;
+
+  list.innerHTML = _rpData.stages.map((s, i) => `
+    <div class="rp-edit-stage-row" data-sid="${s.id}">
+      <div class="rp-edit-stage-num">${i + 1}</div>
+      <div class="rp-edit-stage-fields">
+        <input type="text" class="rp-input rp-edit-stage-title" value="${escHtml(s.title)}"
+               placeholder="Stage title…" maxlength="120" data-sid="${s.id}"/>
+        <input type="text" class="rp-input rp-input-desc rp-edit-stage-desc" value="${escHtml(s.description||'')}"
+               placeholder="Description (optional)…" maxlength="250" data-sid="${s.id}"/>
+      </div>
+    </div>
+  `).join('');
+
+  const ov = document.getElementById('rp-edit-modal-overlay');
+  if (ov) ov.classList.remove('hidden');
+}
+
+function closeEditRoadmapModal() {
+  const ov = document.getElementById('rp-edit-modal-overlay');
+  if (ov) ov.classList.add('hidden');
+}
+
+function saveEditRoadmap() {
+  // Collect all edits and fire sequential saves
+  const rows = document.querySelectorAll('.rp-edit-stage-row');
+  const updates = [];
+  rows.forEach(row => {
+    const sid = parseInt(row.dataset.sid);
+    const titleEl = row.querySelector('.rp-edit-stage-title');
+    const descEl  = row.querySelector('.rp-edit-stage-desc');
+    const title = titleEl ? titleEl.value.trim() : '';
+    const desc  = descEl  ? descEl.value.trim() : '';
+    if (title) updates.push({ sid, title, desc });
+  });
+
+  if (updates.length === 0) { closeEditRoadmapModal(); return; }
+
+  // Save all in parallel
+  Promise.all(updates.map(u =>
+    fetch(`/roadmap/${GOAL_ID}/edit-stage/${u.sid}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: u.title, description: u.desc })
+    }).then(r => r.json())
+  ))
+    .then(results => {
+      const allOk = results.every(r => r.status === 'ok');
+      closeEditRoadmapModal();
+      loadRoadmap();
+      showToast(allOk ? 'Roadmap updated ✓' : 'Some stages had errors', allOk ? 'success' : 'warn');
+    })
+    .catch(() => {
+      closeEditRoadmapModal();
+      showToast('Error saving changes', 'error');
+      loadRoadmap();
+    });
+}
+
+// ─── Delete Roadmap ───────────────────────────────────────────
+function confirmDeleteRoadmap() {
+  if (!_rpData || _rpData.total === 0) {
+    showToast('No stages to delete', 'warn'); return;
+  }
+  const ov = document.getElementById('rp-delete-modal-overlay');
+  if (ov) ov.classList.remove('hidden');
+}
+
+function closeDeleteModal() {
+  const ov = document.getElementById('rp-delete-modal-overlay');
+  if (ov) ov.classList.add('hidden');
+}
+
+async function executeDeleteAllStages() {
+  if (!_rpData || !_rpData.stages) return;
+  const stages = [..._rpData.stages];
+  closeDeleteModal();
+
+  try {
+    await Promise.all(stages.map(s =>
+      fetch(`/roadmap/${GOAL_ID}/delete-stage/${s.id}`, { method: 'POST' }).then(r => r.json())
+    ));
+    showToast('All stages deleted', 'success');
+    loadRoadmap();
+  } catch {
+    showToast('Error deleting stages', 'error');
+    loadRoadmap();
+  }
+}
+
+// ─── Keyboard shortcuts ───────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    closeStageEditModal();
+    closeEditRoadmapModal();
+    closeDeleteModal();
+  }
+});
+
+// ─── Helpers ─────────────────────────────────────────────────
+function setEl(id, val) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = val;
+}
+
+function escHtml(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function showToast(msg, type = 'info') {
+  const t = document.getElementById('rp-toast');
+  if (!t) return;
+  t.textContent = msg;
+  t.className = 'rp-toast rp-toast-show rp-toast-' + type;
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => { t.className = 'rp-toast'; }, 3000);
+}
+</script>
+</body>
+</html>
